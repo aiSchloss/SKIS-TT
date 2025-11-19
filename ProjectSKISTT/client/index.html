@@ -1180,7 +1180,7 @@ teacher._id
         });
 
         const teacherSchedules = schedules.filter(event => 
-          event.teacherId === teacher._id && weekDateStrings.includes(event.day)
+          event.teacherId === teacher.id && weekDateStrings.includes(event.day)
         );
 
         return (
@@ -1414,7 +1414,7 @@ teacher._id
                           <em>All Teachers</em>
                         </MenuItem>
                         {teachers.map(teacher => (
-                          teacher && <MenuItem key={teacher._id} value={teacher._id}>{teacher.name}</MenuItem>
+                          teacher && <MenuItem key={teacher._id} value={teacher.id}>{teacher.name}</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -1472,7 +1472,7 @@ teacher._id
             )}
             {selectedTeacher ? (
               <TeacherScheduleView 
-                teacher={teachers.find(t => t && t._id === selectedTeacher)}
+                teacher={teachers.find(t => t && t.id === selectedTeacher)}
                 schedules={schedules}
                 subjects={subjects}
                 timeSlots={timeSlots}
