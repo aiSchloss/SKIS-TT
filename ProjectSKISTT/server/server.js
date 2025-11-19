@@ -510,9 +510,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 app.use(express.static(join(__dirname, '../client')));
 
-// Catch-all route to serve the frontend
-app.get('/*', (req, res) => {
-  res.sendFile(join(__dirname, '../client', 'index.html'));
+// Catch-all middleware to serve the frontend
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    res.sendFile(join(__dirname, '../client', 'index.html'));
+  } else {
+    next();
+  }
 });
 
 
