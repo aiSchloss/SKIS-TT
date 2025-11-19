@@ -12,9 +12,8 @@ import nodemailer from 'nodemailer';
 // IMPORTANT: Replace with your own credentials from Google Cloud Console
 const GOOGLE_CLIENT_ID = '567055867533-cutlobhghu3l1bepecla3pvsrj4sojuk.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = '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';
-// This should match the authorized redirect URI in your Google Cloud project
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 const REDIRECT_URI = process.env.API_URL ? `${process.env.API_URL}/api/auth/google/callback` : 'http://localhost:3001/api/auth/google/callback';
-const FRONTEND_URL = process.env.FRONTEND_URL || '${FRONTEND_URL}';
 
 const oauth2Client = new google.auth.OAuth2(
   GOOGLE_CLIENT_ID,
@@ -26,11 +25,6 @@ const oauth2Client = new google.auth.OAuth2(
 const app = express()
 app.use(cors()) // Enable CORS for all routes
 app.use(express.json({ limit: '50mb' }))
-
-// Serve static files from the client directory
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-app.use(express.static(join(__dirname, '../client')));
 
 // --- MongoDB Connection ---
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -509,6 +503,12 @@ app.get('/api/auth/google/callback', async (req, res) => {
     res.redirect(`${FRONTEND_URL}?error=Authentication%20failed`);
   }
 });
+
+// --- Frontend Serving ---
+// Serve static files from the client directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use(express.static(join(__dirname, '../client')));
 
 // Catch-all route to serve the frontend
 app.get('/*', (req, res) => {
