@@ -889,7 +889,7 @@ teacher._id
                                                         const editingIds = new Set(editingSubjects.map(s => s.id));
                                                         originalSubjects.forEach(original => {
                                                           if (original.id && !editingIds.has(original.id)) {
-                                                            changes.push(fetch(`${API_URL}/subjects/${original.id}`, {
+                                                            changes.push(fetch(`${API_URL}/subjects/${original._id}`, {
                                                               method: 'DELETE'
                                                             }));
                                                           }
@@ -958,7 +958,7 @@ teacher._id
                                                         const editingIds = new Set(editingTeachers.map(t => t.id));
                                                         originalTeachers.forEach(original => {
                                                           if (original.id && !editingIds.has(original.id)) {
-                                                            changes.push(fetch(`${API_URL}/teachers/${original.id}`, { method: 'DELETE' }));
+                                                            changes.push(fetch(`${API_URL}/teachers/${original._id}`, { method: 'DELETE' }));
                                                           }
                                                         });
 
@@ -1063,7 +1063,7 @@ teacher._id
                                                         const editingIds = new Set(editingRooms.map(r => r.id));
                                                         originalRooms.forEach(original => {
                                                           if (original.id && !editingIds.has(original.id)) {
-                                                            changes.push(fetch(`${API_URL}/rooms/${original.id}`, { method: 'DELETE' }));
+                                                            changes.push(fetch(`${API_URL}/rooms/${original._id}`, { method: 'DELETE' }));
                                                           }
                                                         });
 
