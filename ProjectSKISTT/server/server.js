@@ -15,6 +15,8 @@ const GOOGLE_CLIENT_SECRET = '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';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 const REDIRECT_URI = process.env.API_URL ? `${process.env.API_URL}/api/auth/google/callback` : 'http://localhost:3001/api/auth/google/callback';
 
+console.log(`Using REDIRECT_URI: ${REDIRECT_URI}`);
+
 const oauth2Client = new google.auth.OAuth2(
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
