@@ -57,8 +57,8 @@ connectToMongo();
 // and open a preview URL to see the sent email.
 let transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // Use `true` for port 465, `false` for other ports like 587
+    port: 465,
+    secure: true, // Use `true` for port 465
     auth: {
         user: "schedule@krumbach.school",
         pass: "rxua ohxn nibl tapy"
