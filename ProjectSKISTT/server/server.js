@@ -511,7 +511,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
 });
 
 // Catch-all route to serve the frontend
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
   res.sendFile(join(__dirname, '../client', 'index.html'));
 });
 
