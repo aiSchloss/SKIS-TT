@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Schedule</title>
+  <!-- Material UI Fonts and Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React, Babel, and Material-UI via CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@mui/material@5/umd/material-ui.development.js"></script>
+
+  <script type="text/babel">
+    const {
+      colors,
+      createTheme,
+      ThemeProvider,
+      CssBaseline,
+      AppBar,
+      Toolbar,
+      Typography,
+      Container,
+      Box,
+      IconButton,
+      Icon,
+      Modal,
+      Button,
+      TextField,
+      Select,
+      MenuItem,
+      InputLabel,
+      FormControl,
+      Grid
+    } = MaterialUI;
+
+    const theme = createTheme({
+      palette: {
+        primary: {
+          main: '#1976d2',
+        },
+        secondary: {
+          main: '#dc004e',
+        },
+      },
+    });
+
+    const API_URL = '/api';
+
+    function App() {
+      // STATE
+      const [currentDay, setCurrentDay] = React.useState(new Date('2025-08-25'));
+      const [data, setData] = React.useState({ schedules: [], teachers: [], subjects: [], rooms: [], grades: [7, 8, 9, 10, 11, 12] });
+      const [isModalOpen, setModalOpen] = React.useState(false);
+      const [newEvent, setNewEvent] = React.useState({
+        grade: '',
+        timeSlotId: '',
+        subjectId: '',
+        teacherId: '',
+        roomId: '',
+        color: '#ffffff',
+        customSubject: ''
+      });
+
+      const [recentColors, setRecentColors] = React.useState(() => {
+        const saved = localStorage.getItem('recentColors');
+        return saved ? JSON.parse(saved) : [];
+      });
+
+      // DATA FETCHING
+      const fetchData = () => {
+        fetch(`${API_URL}/data`).then(res => res.json()).then(setData).catch(err => console.error("Failed to fetch data", err));
+      };
+      React.useEffect(fetchData, []);
+
+      // PERSIST RECENT COLORS
+      React.useEffect(() => {
+        localStorage.setItem('recentColors', JSON.stringify(recentColors));
+      }, [recentColors]);
+
+      // DATA CONSTANTS FROM STATE
+      const { schedules, teachers, subjects, rooms, grades } = data;
+      const timeSlots = [
+        { id: 1, time: '8:00 - 8:50' }, { id: 2, time: '9:00 - 9:50' }, { id: 3, time: '10:00 - 10:50' },
+        { id: 'snack', time: 'Snack' }, { id: 4, time: '11:00 - 11:50' }, { id: 5, time: '12:00 - 12:50' },
+        { id: 'lunch', time: '13:00 - 13:50' }, { id: 6, time: '14:00 - 14:50' }, { id: 7, time: '15:00 - 15:50' },
+        { id: 8, time: '16:00-16:50' }, { id: 9, time: '17:00-17:50' }, { id: 10, time: '17:50-19:00' },
+      ];
+      const darkGrayCellStyle = { border: '2px solid #616161', padding: '8px', textAlign: 'left', verticalAlign: 'top', backgroundColor: '#fafafa' };
+
+      // HELPER FUNCTIONS
+      const getWeekNumber = (d) => {
+        const schoolYearStartDate = new Date('2025-08-25T00:00:00Z');
+        const currentDayUTC = new Date(d.toISOString().split('T')[0] + 'T00:00:00Z');
+        if (currentDayUTC < schoolYearStartDate) return 1;
+        const holidays = [
+            { start: new Date('2025-10-18T00:00:00Z'), end: new Date('2025-11-02T23:59:59Z') }, { start: new Date('2025-12-20T00:00:00Z'), end: new Date('2026-01-07T23:59:59Z') },
+            { start: new Date('2026-01-31T00:00:00Z'), end: new Date('2026-02-08T23:59:59Z') }, { start: new Date('2026-03-28T00:00:00Z'), end: new Date('2026-04-12T23:59:59Z') },
+            { start: new Date('2026-06-20T00:00:00Z'), end: new Date('2026-08-23T23:59:59Z') },
+        ];
+        let schoolDaysCount = 0;
+        let iterDate = new Date(schoolYearStartDate);
+        while(iterDate <= currentDayUTC) {
+            const dayOfWeek = iterDate.getUTCDay();
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            let isHoliday = false;
+            if (!isWeekend) {
+                for (const period of holidays) {
+                    if (iterDate >= period.start && iterDate <= period.end) { isHoliday = true; break; }
+                }
+            }
+            if (!isWeekend && !isHoliday) { schoolDaysCount++; }
+            iterDate.setUTCDate(iterDate.getUTCDate() + 1);
+        }
+        if (schoolDaysCount <= 0) return 1;
+        return Math.ceil(schoolDaysCount / 5);
+      };
+      const formatDate = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+      };
+      const getEventsForCell = (grade, timeSlotId) => {
+          const dayString = currentDay.toISOString().split('T')[0];
+          return schedules.filter(event => event.day === dayString && event.grade === grade && event.timeSlotId === timeSlotId);
+      };
+      const dayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
+
+      // EVENT HANDLERS
+      const handleOpenModal = () => setModalOpen(true);
+      const handleCloseModal = () => setModalOpen(false);
+      const handleFormChange = (e) => {
+        const { name, value } = e.target;
+        setNewEvent(prev => ({ ...prev, [name]: value }));
+      };
+      const handleSubmit = () => {
+        alert('1. handleSubmit called');
+        const payload = { ...newEvent, day: currentDay.toISOString().split('T')[0] };
+        if (payload.customSubject) { payload.subjectId = null; }
+        addRecentColor(payload.color);
+        fetch(`${API_URL}/events`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Server responded with an error');
+            return res.json();
+        })
+        .then(() => {
+            alert('3. Success! Re-fetching data.');
+            fetchData();
+            handleCloseModal();
+        })
+        .catch(err => {
+            alert(`2. Error saving event: ${err.message}`);
+            console.error("Failed to save event", err);
+        });
+      };
+      const handlePrevDay = () => {
+        const newDay = new Date(currentDay);
+        newDay.setDate(newDay.getDate() - 1);
+        setCurrentDay(newDay);
+      };
+      const handleNextDay = () => {
+        const newDay = new Date(currentDay);
+        newDay.setDate(newDay.getDate() + 1);
+        setCurrentDay(newDay);
+      };
+      const handlePrevWeek = () => {
+        const newDay = new Date(currentDay);
+        newDay.setDate(newDay.getDate() - 7);
+        setCurrentDay(newDay);
+      };
+      const handleNextWeek = () => {
+        const newDay = new Date(currentDay);
+        newDay.setDate(newDay.getDate() + 7);
+        setCurrentDay(newDay);
+      };
+
+      // RENDER
+      return (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <AppBar position="static">
+            <Toolbar>
+              <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>Schloss Krumbach Timetable</Typography>
+              <Button variant="contained" color="secondary" onClick={handleOpenModal}>Add Event</Button>
+            </Toolbar>
+          </AppBar>
+          <Container maxWidth="xl" style={{ marginTop: '2rem' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                <IconButton onClick={handlePrevWeek}><Icon>arrow_back_ios</Icon></IconButton>
+                <Typography variant="h4">{`Week ${getWeekNumber(currentDay)}`}</Typography>
+                <IconButton onClick={handleNextWeek}><Icon>arrow_forward_ios</Icon></IconButton>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                <IconButton onClick={handlePrevDay}><Icon>arrow_back_ios</Icon></IconButton>
+                <Typography variant="h5">{`${dayFormatter.format(currentDay)} - ${formatDate(currentDay)}`}</Typography>
+                <IconButton onClick={handleNextDay}><Icon>arrow_forward_ios</Icon></IconButton>
+            </Box>
+
+            <Box sx={{ overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{...darkGrayCellStyle, width: '1%', whiteSpace: 'nowrap'}}>Time</th>
+                    {grades.map(grade => <th key={grade} style={{...darkGrayCellStyle, textAlign: 'center'}}>{`Grade ${grade}`}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {timeSlots.map(timeSlot => {
+                    const isSpecialRow = ['snack', 'lunch', 10].includes(timeSlot.id);
+                    const rowStyle = { backgroundColor: isSpecialRow ? '#e0e0e0' : 'inherit' };
+                    return (
+                        <tr key={timeSlot.id}>
+                        <td style={{...darkGrayCellStyle, ...rowStyle, width: '1%', whiteSpace: 'nowrap'}}>{timeSlot.time}</td>
+                        {grades.map(grade => (
+                            <td key={`${grade}-${timeSlot.id}`} style={{...darkGrayCellStyle, ...rowStyle}}>
+                            {getEventsForCell(grade, timeSlot.id).map(event => {
+                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
+                                const teacher = teachers.find(t => t.id === event.teacherId);
+                                const room = rooms.find(r => r.id === event.roomId);
+                                const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
+                                return (
+                                <Box key={event.id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', marginBottom: '4px', fontSize: '0.8rem' }}>
+                                    <Typography variant="body2"><b>{subject ? subject.name : 'Event'}</b></Typography>
+                                    <Typography variant="caption">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
+                                </Box>
+                                );
+                            })}
+                            </td>
+                        ))}
+                        </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </Box>
+            <Modal open={isModalOpen} onClose={handleCloseModal}>
+                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                    <Typography variant="h6" component="h2" sx={{mb: 2}}>Add New Schedule Event</Typography>
+                    <Grid container spacing={2}>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Grade</InputLabel><Select name="grade" value={newEvent.grade} label="Grade" onChange={handleFormChange}>{grades.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Time Slot</InputLabel><Select name="timeSlotId" value={newEvent.timeSlotId} label="Time Slot" onChange={handleFormChange}>{timeSlots.filter(t=>typeof t.id === 'number').map(t => <MenuItem key={t.id} value={t.id}>{t.time}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12}><TextField label="Or Custom Event Name" name="customSubject" value={newEvent.customSubject} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12}><TextField label="Custom Color" type="color" name="color" value={newEvent.color} onChange={handleFormChange} fullWidth/></Grid>
+                        <Grid item xs={12}>
+                            <Typography variant="caption">Recent Colors</Typography>
+                            <Box sx={{display: 'flex', gap: '8px', mt: 1}}>
+                                {recentColors.map(color => (
+                                    <Box key={color} sx={{width: 24, height: 24, backgroundColor: color, borderRadius: '4px', cursor: 'pointer', border: '1px solid #ccc'}}
+                                         onClick={() => setNewEvent(prev => ({...prev, color: color}))} />
+                                ))}
+                            </Box>
+                        </Grid>
+                    </Grid>
+                    <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}><Button onClick={handleCloseModal} sx={{mr: 1}}>Cancel</Button><Button variant="contained" onClick={handleSubmit}>Save</Button></Box>
+                </Box>
+            </Modal>
+          </Container>
+        </ThemeProvider>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

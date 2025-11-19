@@ -1,0 +1,267 @@
+{
+  "schedules": [
+    {
+      "grade": 7,
+      "timeSlotId": 1,
+      "subjectId": 6,
+      "teacherId": "CH",
+      "roomId": 6,
+      "color": "#ffffff",
+      "customSubject": "",
+      "day": "2025-11-05",
+      "id": 1762334771194
+    },
+    {
+      "grade": 7,
+      "timeSlotId": 1,
+      "subjectId": 6,
+      "teacherId": "CH",
+      "roomId": 6,
+      "color": "#ff4747",
+      "customSubject": "",
+      "day": "2025-11-03",
+      "id": 1762334840254
+    },
+    {
+      "grade": 7,
+      "timeSlotId": 1,
+      "subjectId": 5,
+      "teacherId": "SQ",
+      "roomId": 8,
+      "color": "#4ade68",
+      "customSubject": "",
+      "day": "2025-11-03",
+      "id": 1762334867356
+    },
+    {
+      "grade": 9,
+      "timeSlotId": 1,
+      "subjectId": 1,
+      "teacherId": "VV",
+      "roomId": 1,
+      "color": "#4ac5de",
+      "customSubject": "",
+      "day": "2025-11-03",
+      "id": 1762334898544
+    },
+    {
+      "grade": 9,
+      "timeSlotId": 2,
+      "subjectId": 1,
+      "teacherId": "VV",
+      "roomId": 1,
+      "color": "#4ac5de",
+      "customSubject": "",
+      "day": "2025-11-03",
+      "id": 1762334910611
+    }
+  ],
+  "teachers": [
+    {
+      "id": "CW",
+      "name": "CW"
+    },
+    {
+      "id": "TS",
+      "name": "TS"
+    },
+    {
+      "id": "VV",
+      "name": "VV"
+    },
+    {
+      "id": "SQ",
+      "name": "SQ"
+    },
+    {
+      "id": "CH",
+      "name": "CH"
+    },
+    {
+      "id": "EB",
+      "name": "EB"
+    },
+    {
+      "id": "MM",
+      "name": "MM"
+    },
+    {
+      "id": "ES",
+      "name": "ES"
+    },
+    {
+      "id": "AA",
+      "name": "AA"
+    },
+    {
+      "id": "AT",
+      "name": "AT"
+    },
+    {
+      "id": "EP",
+      "name": "EP"
+    },
+    {
+      "id": "LV",
+      "name": "LV"
+    },
+    {
+      "id": "NPB",
+      "name": "NPB"
+    },
+    {
+      "id": "TG",
+      "name": "TG"
+    },
+    {
+      "id": "EK",
+      "name": "EK"
+    }
+  ],
+  "subjects": [
+    {
+      "id": 1,
+      "name": "History",
+      "color": "#4caf50"
+    },
+    {
+      "id": 2,
+      "name": "English",
+      "color": "#f44336"
+    },
+    {
+      "id": 3,
+      "name": "Mathematics",
+      "color": "#2196f3"
+    },
+    {
+      "id": 4,
+      "name": "Biology",
+      "color": "#8bc34a"
+    },
+    {
+      "id": 5,
+      "name": "Chemistry",
+      "color": "#ffc107"
+    },
+    {
+      "id": 6,
+      "name": "German",
+      "color": "#9c27b0"
+    },
+    {
+      "id": 7,
+      "name": "Russian",
+      "color": "#e91e63"
+    },
+    {
+      "id": 8,
+      "name": "Sport",
+      "color": "#ff5722"
+    },
+    {
+      "id": 9,
+      "name": "Homework",
+      "color": "#607d8b"
+    },
+    {
+      "id": 10,
+      "name": "Persian",
+      "color": "#ff9800"
+    },
+    {
+      "id": 11,
+      "name": "Russian Literature",
+      "color": "#d81b60"
+    },
+    {
+      "id": 12,
+      "name": "CAS",
+      "color": "#009688"
+    },
+    {
+      "id": 13,
+      "name": "Physics",
+      "color": "#3f51b5"
+    },
+    {
+      "id": 14,
+      "name": "Art",
+      "color": "#795548"
+    },
+    {
+      "id": 15,
+      "name": "Music",
+      "color": "#cddc39"
+    },
+    {
+      "id": 16,
+      "name": "Singing",
+      "color": "#ffeb3b"
+    },
+    {
+      "id": 17,
+      "name": "TOK",
+      "color": "#00bcd4"
+    },
+    {
+      "id": 18,
+      "name": "ESS",
+      "color": "#9e9e9e"
+    }
+  ],
+  "rooms": [
+    {
+      "id": 1,
+      "name": "room 1.1"
+    },
+    {
+      "id": 2,
+      "name": "room 1.2"
+    },
+    {
+      "id": 3,
+      "name": "room 1.3"
+    },
+    {
+      "id": 4,
+      "name": "room 1.4"
+    },
+    {
+      "id": 5,
+      "name": "room 1.5"
+    },
+    {
+      "id": 6,
+      "name": "room 1.6"
+    },
+    {
+      "id": 7,
+      "name": "room 1.7"
+    },
+    {
+      "id": 8,
+      "name": "Lab 1"
+    },
+    {
+      "id": 9,
+      "name": "Lab 4"
+    },
+    {
+      "id": 10,
+      "name": "Artroom"
+    },
+    {
+      "id": 11,
+      "name": "library online"
+    }
+  ],
+  "grades": [
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ]
+}
