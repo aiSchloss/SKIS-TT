@@ -27,6 +27,11 @@ const app = express()
 app.use(cors()) // Enable CORS for all routes
 app.use(express.json({ limit: '50mb' }))
 
+// Serve static files from the client directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use(express.static(join(__dirname, '../client')));
+
 // --- MongoDB Connection ---
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
@@ -501,8 +506,13 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
   } catch (error) {
     console.error('Google Auth Callback Error:', error);
-    res.redirect('${FRONTEND_URL}?error=Authentication%20failed');
+    res.redirect(`${FRONTEND_URL}?error=Authentication%20failed`);
   }
+});
+
+// Catch-all route to serve the frontend
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '../client', 'index.html'));
 });
 
 
