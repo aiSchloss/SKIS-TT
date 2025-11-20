@@ -173,7 +173,7 @@
                                                       const [isSendMailModalOpen, setIsSendMailModalOpen] = React.useState(false);
                                                       const [emailBody, setEmailBody] = React.useState('');
                                                       const [emailRecipients, setEmailRecipients] = React.useState([]);
-                                                      const [recipient, setRecipient] = React.useState(null);
+                                                      const [selectedRecipients, setSelectedRecipients] = React.useState({});
                                                       const [sendingMail, setSendingMail] = React.useState(false);
 
                                                       const [selectedTeacher, setSelectedTeacher] = React.useState('');
@@ -195,19 +195,20 @@
                                                           .then(data => setEmailBody(data.text || ''))
                                                           .catch(err => console.error("Failed to fetch email text", err));
                                                         
-                                                        const allTeachersOption = { id: 'all-teachers', name: 'All Teachers', email: 'teachers@krumbach.school' };
+                                                        const allTeachersOption = { id: 'all-teachers', name: 'All Teachers', email: 'a.bukhariev@krumbach.school' };
                                                         const allGradesOption = { id: 'all-grades', name: 'All Grades' };
                                                         
                                                         const gradeRecipients = grades.map(g => ({ id: `grade-${g}`, name: `Grade ${g}`}));
 
                                                         setEmailRecipients([allTeachersOption, ...teachers, allGradesOption, ...gradeRecipients]);
+                                                        setSelectedRecipients({});
                                                         setIsSendMailModalOpen(true);
                                                         handleMenuClose();
                                                       };
                                                       
                                                       const handleCloseMailModal = () => {
                                                         setIsSendMailModalOpen(false);
-                                                        setRecipient(null);
+                                                        setSelectedRecipients({});
                                                         // emailBody is intentionally not cleared
                                                       };
 
@@ -498,6 +499,69 @@
                                                       const getAllWeeks = () => { return Array.from({ length: 40 }, (_, i) => i + 1); };
                                                       const handleWeekChange = (e) => { const weekNumber = e.target.value; const schoolYearStartDate = new Date('2025-08-25T00:00:00Z'); const newDate = new Date(schoolYearStartDate.setDate(schoolYearStartDate.getDate() + (weekNumber - 1) * 7)); setCurrentDay(newDate); setInitialDay(newDate); };
                                                       
+                                                      const generatePDF = async (isForEmail = false, teacherName = null, grade = null) => {
+                                                        const { jsPDF } = window.jspdf;
+                                                        const pdf = new jsPDF('landscape', 'pt', 'a4');
+                                                        
+                                                        let tableId;
+                                                        if (teacherName) {
+                                                          tableId = '#teacher-schedule-table';
+                                                        } else if (grade) {
+                                                          tableId = '#grade-schedule-table';
+                                                        } else {
+                                                          tableId = '#schedule-table';
+                                                        }
+
+                                                        const table = document.querySelector(tableId);
+                                                        if (!table) {
+                                                          const errorMsg = `Could not find table: ${tableId}`;
+                                                          console.error(errorMsg);
+                                                          if (!isForEmail) alert(errorMsg);
+                                                          return Promise.reject(errorMsg);
+                                                        }
+
+                                                        const style = document.createElement('style');
+                                                        style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
+                                                        document.head.appendChild(style);
+                                                        table.classList.add('export-style');
+
+                                                        const canvas = await html2canvas(table);
+                                                        const imgData = canvas.toDataURL('image/png');
+                                                        
+                                                        table.classList.remove('export-style');
+                                                        document.head.removeChild(style);
+
+                                                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                                                        const canvasWidth = canvas.width;
+                                                        const canvasHeight = canvas.height;
+                                                        const ratio = canvasWidth / canvasHeight;
+                                                        const imgWidth = pdfWidth - 80;
+                                                        const imgHeight = imgWidth / ratio;
+
+                                                        let dateText = `Schedule for Week ${getWeekNumber(currentDay)}`;
+                                                        if (teacherName) {
+                                                          dateText = `Schedule for ${teacherName} - Week ${getWeekNumber(currentDay)}`;
+                                                        } else if (grade) {
+                                                          dateText = `Schedule for Grade ${grade} - Week ${getWeekNumber(currentDay)}`;
+                                                        }
+                                                        
+                                                        pdf.setFontSize(12);
+                                                        pdf.text(dateText, 40, 30);
+                                                        pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
+
+                                                        if (isForEmail) {
+                                                          return pdf.output('datauristring');
+                                                        } else {
+                                                          let fileName = `schedule-W_${getWeekNumber(currentDay)}.pdf`;
+                                                          if (teacherName) {
+                                                            fileName = `schedule-T_${teacherName.replace(/\s/g, '_')}-W_${getWeekNumber(currentDay)}.pdf`;
+                                                          } else if (grade) {
+                                                            fileName = `schedule-G_${grade}-W_${getWeekNumber(currentDay)}.pdf`;
+                                                          }
+                                                          pdf.save(fileName);
+                                                        }
+                                                      };
+
                                                       // EXPORT HANDLERS
                                                       const handleOpenExportModal = () => { 
                                                         const currentWeek = getWeekNumber(currentDay); 
@@ -517,167 +581,22 @@
                                                         }
                                                       };
                                                       const handleExport = async () => {
-                                                        const { jsPDF } = window.jspdf;
-                                                        const pdf = new jsPDF('landscape', 'pt', 'a4');
-                                                        
                                                         setIsExporting(true);
+                                                        
+                                                        let teacherName = null;
+                                                        let grade = null;
 
-                                                        if (selectedTeacher) {
-                                                            const tableNode = document.querySelector('#teacher-schedule-table');
-                                                            const style = document.createElement('style');
-                                                            style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                                                            document.head.appendChild(style);
-                                                            tableNode.classList.add('export-style');
-
-                                                            const teacherName = teachers.find(t => t.id === selectedTeacher)?.name.replace(/\s/g, '_') || 'teacher';
-                                                            const fileName = `schedule-T_${teacherName}-W_${getWeekNumber(currentDay)}.pdf`;
-                                                            
-                                                            const canvas = await html2canvas(tableNode);
-                                                            const imgData = canvas.toDataURL('image/png');
-                                                            const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                            const canvasWidth = canvas.width;
-                                                            const canvasHeight = canvas.height;
-                                                            const ratio = canvasWidth / canvasHeight;
-                                                            const imgWidth = pdfWidth - 80;
-                                                            const imgHeight = imgWidth / ratio;
-
-                                                            const dateText = `Schedule for ${teachers.find(t => t.id === selectedTeacher)?.name} - Week ${getWeekNumber(currentDay)}`;
-                                                            pdf.setFontSize(12);
-                                                            pdf.text(dateText, 40, 30);
-                                                            pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                            pdf.save(fileName);
-
-                                                            tableNode.classList.remove('export-style');
-                                                            document.head.removeChild(style);
-                                                        } else if (selectedGrade) {
-                                                            const tableNode = document.querySelector('#grade-schedule-table');
-                                                            const style = document.createElement('style');
-                                                            style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                                                            document.head.appendChild(style);
-                                                            tableNode.classList.add('export-style');
-
-                                                            const fileName = `schedule-G_${selectedGrade}-W_${getWeekNumber(currentDay)}.pdf`;
-                                                            
-                                                            const canvas = await html2canvas(tableNode);
-                                                            const imgData = canvas.toDataURL('image/png');
-                                                            const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                            const canvasWidth = canvas.width;
-                                                            const canvasHeight = canvas.height;
-                                                            const ratio = canvasWidth / canvasHeight;
-                                                            const imgWidth = pdfWidth - 80;
-                                                            const imgHeight = imgWidth / ratio;
-
-                                                            const dateText = `Schedule for Grade ${selectedGrade} - Week ${getWeekNumber(currentDay)}`;
-                                                            pdf.setFontSize(12);
-                                                            pdf.text(dateText, 40, 30);
-                                                            pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                            pdf.save(fileName);
-
-                                                            tableNode.classList.remove('export-style');
-                                                            document.head.removeChild(style);
-                                                        } else {
-                                                            const tableNode = document.querySelector('#schedule-table');
-                                                            const style = document.createElement('style');
-                                                            style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                                                            document.head.appendChild(style);
-                                                            tableNode.classList.add('export-style');
-                                                    
-                                                            let pageCount = 0;
-                                                    
-                                                            if (startWeek && endWeek) { // Range export logic
-                                                                const parsedStartWeek = parseInt(startWeek);
-                                                                const parsedEndWeek = parseInt(endWeek);
-                                                    
-                                                                if (isNaN(parsedStartWeek) || isNaN(parsedEndWeek) || parsedStartWeek <= 0 || parsedEndWeek <= 0 || parsedStartWeek > parsedEndWeek) {
-                                                                    alert('Please enter a valid week range (e.g., 1 to 20).');
-                                                                    setIsExporting(false);
-                                                                    tableNode.classList.remove('export-style');
-                                                                    document.head.removeChild(style);
-                                                                    return;
-                                                                }
-                                                    
-                                                                const schoolYearStartDate = new Date('2025-08-25T00:00:00Z');
-                                                                const schoolYearEndDate = new Date('2026-06-20T00:00:00Z');
-                                                                let currentDateIter = new Date(schoolYearStartDate);
-                                                    
-                                                                while (currentDateIter <= schoolYearEndDate) {
-                                                                    const weekOfCurrentDate = getWeekNumber(currentDateIter);
-                                                                    if (weekOfCurrentDate >= parsedStartWeek && weekOfCurrentDate <= parsedEndWeek) {
-                                                                        const dayOfWeek = currentDateIter.getDay();
-                                                                        if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Is a weekday
-                                                                            setCurrentDay(new Date(currentDateIter));
-                                                                            await new Promise(resolve => setTimeout(resolve, 1500));
-                                                    
-                                                                            const canvas = await html2canvas(tableNode);
-                                                                            const imgData = canvas.toDataURL('image/png');
-                                                                            const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                                            const canvasWidth = canvas.width;
-                                                                            const canvasHeight = canvas.height;
-                                                                            const ratio = canvasWidth / canvasHeight;
-                                                                            const imgWidth = pdfWidth - 80;
-                                                                            const imgHeight = imgWidth / ratio;
-                                                    
-                                                                            if (pageCount > 0) { pdf.addPage(); }
-                                                                            pageCount++;
-                                                                            
-                                                                            const dateText = `${dayFormatter.format(currentDateIter)} - ${formatDate(currentDateIter)}`;
-                                                                            pdf.setFontSize(12);
-                                                                            pdf.text(dateText, 40, 30);
-                                                                            pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                                        }
-                                                                    }
-                                                                    currentDateIter.setDate(currentDateIter.getDate() + 1);
-                                                                }
-                                                                pdf.save(`schedule-weeks-${parsedStartWeek}-${parsedEndWeek}.pdf`);
-                                                    
-                                                            } else { // 'days' mode (existing logic)
-                                                                const selectedDays = Object.entries(exportDays).filter(([, isSelected]) => isSelected).map(([day]) => day);
-                                                                if (selectedDays.length === 0) {
-                                                                    alert('Please select at least one day to export.');
-                                                                    setIsExporting(false);
-                                                                    tableNode.classList.remove('export-style');
-                                                                    document.head.removeChild(style);
-                                                                    return;
-                                                                }
-                                                                
-                                                                const sourceDay = new Date(currentDay);
-                                                                const sourceDayOfWeek = sourceDay.getDay();
-                                                                const mondayOfExportWeek = new Date(sourceDay);
-                                                                mondayOfExportWeek.setDate(sourceDay.getDate() - sourceDayOfWeek + (sourceDayOfWeek === 0 ? -6 : 1));
-                                                    
-                                                                for (let i = 0; i < selectedDays.length; i++) {
-                                                                    const dayName = selectedDays[i];
-                                                                    const dayIndex = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].indexOf(dayName);
-                                                                    const targetDay = new Date(mondayOfExportWeek);
-                                                                    targetDay.setDate(mondayOfExportWeek.getDate() + dayIndex);
-                                                    
-                                                                    setCurrentDay(targetDay);
-                                                                    await new Promise(resolve => setTimeout(resolve, 1500));
-                                                    
-                                                                    const canvas = await html2canvas(tableNode);
-                                                                    const imgData = canvas.toDataURL('image/png');
-                                                                    const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                                    const canvasWidth = canvas.width;
-                                                                    const canvasHeight = canvas.height;
-                                                                    const ratio = canvasWidth / canvasHeight;
-                                                                    const imgWidth = pdfWidth - 80;
-                                                                    const imgHeight = imgWidth / ratio;
-                                                    
-                                                                    if (i > 0) { pdf.addPage(); }
-                                                                    const dateText = `${dayFormatter.format(targetDay)} - ${formatDate(targetDay)}`;
-                                                                    pdf.setFontSize(12);
-                                                                    pdf.text(dateText, 40, 30);
-                                                                    pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                                }
-                                                                pdf.save(`schedule-week-${getWeekNumber(currentDay)}.pdf`);
-                                                            }
-                                                            tableNode.classList.remove('export-style');
-                                                            document.head.removeChild(style);
+                                                        if (exportSelection.startsWith('grade-')) {
+                                                          grade = parseInt(exportSelection.split('-')[1]);
+                                                        } else if (exportSelection !== 'general') {
+                                                          const teacher = teachers.find(t => t._id === exportSelection);
+                                                          if (teacher) teacherName = teacher.name;
                                                         }
-                                                
+
+                                                        await generatePDF(false, teacherName, grade);
+                                                        
                                                         setIsExporting(false);
                                                         handleCloseExportModal();
-                                                        setCurrentDay(initialDay);
                                                       };
 
                                                       // COPY/PASTE HANDLERS
@@ -719,7 +638,7 @@
                                                           if (!createResponse.ok) { 
                                                             throw new Error('Failed to paste schedule.'); 
                                                           }
-
+                                                          
                                                           fetchData(); 
                                                           alert(`Successfully replaced schedule on ${formatDate(copyTargetDate)} with schedule from ${formatDate(currentDay)}.`);
                                                           handleCloseCopyModal(); 
@@ -729,7 +648,7 @@
                                                           alert(`An error occurred while pasting the schedule: ${err.message}`); 
                                                         }
                                                       };
-
+                                                      
                                                       const handleCleanDay = async () => {
                                                         if (!isEditor) return;
                                                         const dayString = currentDay.toISOString().split('T')[0];
@@ -828,7 +747,6 @@
                                                                               });
                                                                               if (!createResponse.ok) { throw new Error('Failed to paste week schedule.'); }
                                                                               
-                                                                              await createResponse.json();
                                                                               fetchData();
                                                                               alert(`Successfully replaced schedule in the week of ${formatDate(mondayOfTargetWeek)} with schedule from the week of ${formatDate(mondayOfSourceWeek)}.`);
                                                                               handleCloseCopyWeekModal();
@@ -1176,87 +1094,86 @@
                                                         }
                                                       };
                                                       
-                                                      const handleSendMail = () => {
-                                                          return new Promise(async (resolve, reject) => {
-                                                              if (!emailBody.trim()) {
-                                                                  alert('Email body cannot be empty.');
-                                                                  return reject('Email body empty');
-                                                              }
-                                                              if (!recipient) {
-                                                                  alert('Please select a recipient.');
-                                                                  return reject('No recipient selected');
-                                                              }
-                                                      
-                                                              setSendingMail(true);
-                                                      
-                                                              let teacherName = null;
-                                                              let grade = null;
-                                                              const isTeacher = teachers.some(t => t.id === recipient.id);
-                                                              const isGrade = recipient.id.startsWith('grade-');
-                                                      
-                                                              const renderAndGeneratePdf = async () => {
-                                                                  let pdfDataUri;
-                                                                  const pdfContainer = document.getElementById('pdf-container');
-                                                      
-                                                                  const generate = async () => {
-                                                                      try {
-                                                                          pdfDataUri = await generatePDF(true, teacherName, grade);
-                                                                          ReactDOM.unmountComponentAtNode(pdfContainer);
-                                                                          return pdfDataUri;
-                                                                      } catch (e) {
-                                                                          ReactDOM.unmountComponentAtNode(pdfContainer);
-                                                                          throw e;
-                                                                      }
-                                                                  };
-                                                      
-                                                                  if (isTeacher) {
-                                                                      teacherName = recipient.name;
-                                                                      const teacher = teachers.find(t => t.id === recipient.id);
-                                                                      const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={handleOpenModal} isEditor={isEditor} />;
-                                                                      return new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generate())));
-                                                                  } else if (isGrade) {
-                                                                      grade = parseInt(recipient.id.split('-')[1]);
-                                                                      const componentToRender = <GradeScheduleView grade={grade} schedules={schedules} subjects={subjects} teachers={teachers} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} handleOpenModal={handleOpenModal} isEditor={isEditor} />;
-                                                                      return new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generate())));
-                                                                  } else {
-                                                                      // For "All Teachers" or "All Grades", use the currently visible table
-                                                                      return generatePDF(true, null, null);
-                                                                  }
+                                                      const handleSendMail = async () => {
+                                                        const recipients = Object.entries(selectedRecipients)
+                                                          .filter(([, isSelected]) => isSelected)
+                                                          .map(([id]) => emailRecipients.find(r => r.id === id));
+
+                                                        if (!emailBody.trim()) {
+                                                          alert('Email body cannot be empty.');
+                                                          return;
+                                                        }
+                                                        if (recipients.length === 0) {
+                                                          alert('Please select at least one recipient.');
+                                                          return;
+                                                        }
+
+                                                        setSendingMail(true);
+
+                                                        for (const recipient of recipients) {
+                                                          try {
+                                                            let teacherName = null;
+                                                            let grade = null;
+                                                            const isTeacher = teachers.some(t => t.id === recipient.id);
+                                                            const isGrade = recipient.id.startsWith('grade-');
+
+                                                            const renderAndGeneratePdf = async () => {
+                                                              let pdfDataUri;
+                                                              const pdfContainer = document.getElementById('pdf-container');
+
+                                                              const generate = async () => {
+                                                                try {
+                                                                  pdfDataUri = await generatePDF(true, teacherName, grade);
+                                                                  ReactDOM.unmountComponentAtNode(pdfContainer);
+                                                                  return pdfDataUri;
+                                                                } catch (e) {
+                                                                  ReactDOM.unmountComponentAtNode(pdfContainer);
+                                                                  throw e;
+                                                                }
                                                               };
-                                                      
-                                                              try {
-                                                                  const pdfDataUri = await renderAndGeneratePdf();
-                                                      
-                                                                  if (!pdfDataUri) {
-                                                                      throw new Error('PDF generation failed.');
-                                                                  }
-                                                      
-                                                                  const subject = `Schedule for ${recipient.name}`;
-                                                                  const fileName = `Schedule_${recipient.name.replace(/\s/g, '_')}.pdf`;
-                                                      
-                                                                  const response = await fetch(`${API_URL}/send-schedule`, {
-                                                                      method: 'POST',
-                                                                      headers: { 'Content-Type': 'application/json' },
-                                                                      body: JSON.stringify({ emailBody, recipient, subject, fileName, pdfDataUri })
-                                                                  });
-                                                      
-                                                                  if (!response.ok) {
-                                                                      const errorData = await response.json();
-                                                                      throw new Error(errorData.message || 'Failed to send email');
-                                                                  }
-                                                      
-                                                                  const result = await response.json();
-                                                                  alert(result.message);
-                                                                  handleCloseMailModal();
-                                                                  resolve();
-                                                              } catch (err) {
-                                                                  console.error(`Error sending schedule to ${recipient.name}:`, err);
-                                                                  alert(`Error sending schedule to ${recipient.name}: ${err.message}`);
-                                                                  reject(err);
-                                                              } finally {
-                                                                  setSendingMail(false);
+
+                                                              if (isTeacher) {
+                                                                teacherName = recipient.name;
+                                                                const teacher = teachers.find(t => t.id === recipient.id);
+                                                                const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={handleOpenModal} isEditor={isEditor} />;
+                                                                return new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generate())));
+                                                              } else if (isGrade) {
+                                                                grade = parseInt(recipient.id.split('-')[1]);
+                                                                const componentToRender = <GradeScheduleView grade={grade} schedules={schedules} subjects={subjects} teachers={teachers} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} handleOpenModal={handleOpenModal} isEditor={isEditor} />;
+                                                                return new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generate())));
+                                                              } else {
+                                                                return generatePDF(true, null, null);
                                                               }
-                                                          });
+                                                            };
+                                                            
+                                                            const pdfDataUri = await renderAndGeneratePdf();
+
+                                                            if (!pdfDataUri) {
+                                                              throw new Error('PDF generation failed.');
+                                                            }
+
+                                                            const subject = `Schedule for ${recipient.name}`;
+                                                            const fileName = `Schedule_${recipient.name.replace(/\s/g, '_')}.pdf`;
+
+                                                            const response = await fetch(`${API_URL}/send-schedule`, {
+                                                              method: 'POST',
+                                                              headers: { 'Content-Type': 'application/json' },
+                                                              body: JSON.stringify({ emailBody, recipient, subject, fileName, pdfDataUri })
+                                                            });
+
+                                                            if (!response.ok) {
+                                                              const errorData = await response.json();
+                                                              throw new Error(errorData.message || 'Failed to send email');
+                                                            }
+                                                          } catch (err) {
+                                                            console.error(`Error sending schedule to ${recipient.name}:`, err);
+                                                            alert(`Error sending schedule to ${recipient.name}: ${err.message}`);
+                                                          }
+                                                        }
+                                                        
+                                                        setSendingMail(false);
+                                                        alert('Finished sending emails.');
+                                                        handleCloseMailModal();
                                                       };
 
                                                       // RENDER
@@ -2251,20 +2168,22 @@
                                                                                                               <Modal open={isSendMailModalOpen} onClose={handleCloseMailModal}>
                                                                                                                 <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
                                                                                                                     <Typography variant="h6" component="h2" sx={{mb: 2}}>Send Schedule via Email</Typography>
-                                                                                                                    <FormControl fullWidth sx={{mb: 2}}>
-                                                                                                                        <InputLabel>Recipient</InputLabel>
-                                                                                                                        <Select
-                                                                                                                            value={recipient ? recipient.id : ''}
-                                                                                                                            label="Recipient"
-                                                                                                                            onChange={(e) => {
-                                                                                                                                const selectedId = e.target.value;
-                                                                                                                                const selectedRecipient = emailRecipients.find(r => r.id === selectedId);
-                                                                                                                                setRecipient(selectedRecipient);
-                                                                                                                            }}
-                                                                                                                        >
-                                                                                                                            {emailRecipients.map(r => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}
-                                                                                                                        </Select>
-                                                                                                                    </FormControl>
+                                                                                                                    <Box sx={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ccc', p: 1, mb: 2 }}>
+                                                                                                                        {emailRecipients.map(r => (
+                                                                                                                            <FormControlLabel
+                                                                                                                                key={r.id}
+                                                                                                                                control={
+                                                                                                                                    <Checkbox
+                                                                                                                                        checked={!!selectedRecipients[r.id]}
+                                                                                                                                        onChange={(e) => {
+                                                                                                                                            setSelectedRecipients(prev => ({ ...prev, [r.id]: e.target.checked }));
+                                                                                                                                        }}
+                                                                                                                                    />
+                                                                                                                                }
+                                                                                                                                label={r.name}
+                                                                                                                            />
+                                                                                                                        ))}
+                                                                                                                    </Box>
                                                                                                                     <TextField
                                                                                                                         label="Email Body"
                                                                                                                         multiline
