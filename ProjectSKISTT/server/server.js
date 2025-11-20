@@ -27,6 +27,7 @@ const oauth2Client = new google.auth.OAuth2(
 const app = express()
 app.use(cors()) // Enable CORS for all routes
 app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- MongoDB Connection ---
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -87,7 +88,7 @@ app.put('/api/email_text/:id', async (req, res) => {
 });
 
 // POST to send schedule email
-app.post('/api/send-schedule', express.json({ limit: '50mb' }), async (req, res) => {
+app.post('/api/send-schedule', async (req, res) => {
     const { emailBody, recipient, subject, fileName, pdfDataUri } = req.body;
 
     if (!SENDGRID_API_KEY || !SENDER_EMAIL) {
