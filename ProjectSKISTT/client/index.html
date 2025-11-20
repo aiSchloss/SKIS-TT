@@ -1278,8 +1278,8 @@
                                                           const allTeachersRecipient = recipients.find(r => r.id === 'all-teachers');
                                                           try {
                                                             const pdfDataUri = await generateWeeklyPDF(true);
-                                                            const subject = `SKIK Week ${weekNumber} Schedule ${dateRangeFormatted}`;
-                                                            const fileName = `SKIK_Week_${weekNumber}_Schedule_${dateRangeFormatted}.pdf`;
+                                                            const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
+                                                            const fileName = `SKIS_Week_${weekNumber}_Schedule_${dateRangeFormatted}.pdf`;
 
                                                             const response = await fetch(`${API_URL}/send-schedule`, {
                                                               method: 'POST',
@@ -1307,8 +1307,8 @@
 
                                                               if (!pdfDataUri) throw new Error('PDF generation failed.');
 
-                                                              const subject = `SKIK Week ${weekNumber} Schedule ${dateRangeFormatted}`;
-                                                              const fileName = `SKIK_Week_${weekNumber}_${recipient.name.replace(/\s/g, '_')}_Schedule_${dateRangeFormatted}.pdf`;
+                                                              const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
+                                                              const fileName = `SKIS_Week_${weekNumber}_${recipient.name.replace(/\s/g, '_')}_Schedule_${dateRangeFormatted}.pdf`;
 
                                                               const response = await fetch(`${API_URL}/send-schedule`, {
                                                                 method: 'POST',
