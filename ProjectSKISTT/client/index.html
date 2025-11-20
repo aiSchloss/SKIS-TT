@@ -196,11 +196,10 @@
                                                           .catch(err => console.error("Failed to fetch email text", err));
                                                         
                                                         const allTeachersOption = { id: 'all-teachers', name: 'All Teachers', email: 'a.bukhariev@krumbach.school' };
-                                                        const allGradesOption = { id: 'all-grades', name: 'All Grades' };
                                                         
-                                                        const gradeRecipients = grades.map(g => ({ id: `grade-${g}`, name: `Grade ${g}`}));
+                                                        const teachersWithEmail = teachers.filter(t => t.email && t.email.trim() !== '');
 
-                                                        setEmailRecipients([allTeachersOption, ...teachers, allGradesOption, ...gradeRecipients]);
+                                                        setEmailRecipients([allTeachersOption, ...teachersWithEmail]);
                                                         setSelectedRecipients({});
                                                         setIsSendMailModalOpen(true);
                                                         handleMenuClose();
@@ -538,11 +537,19 @@
                                                         const imgWidth = pdfWidth - 80;
                                                         const imgHeight = imgWidth / ratio;
 
-                                                        let dateText = `Schedule for Week ${getWeekNumber(currentDay)}`;
+                                                        const monday = new Date(currentDay);
+                                                        while (monday.getDay() !== 1) {
+                                                          monday.setDate(monday.getDate() - 1);
+                                                        }
+                                                        const friday = new Date(monday);
+                                                        friday.setDate(monday.getDate() + 4);
+                                                        const dateRange = `(${formatDate(monday)} - ${formatDate(friday)})`;
+
+                                                        let dateText = `Schedule for Week ${getWeekNumber(currentDay)} ${dateRange}`;
                                                         if (teacherName) {
-                                                          dateText = `Schedule for ${teacherName} - Week ${getWeekNumber(currentDay)}`;
+                                                          dateText = `Schedule for ${teacherName} - Week ${getWeekNumber(currentDay)} ${dateRange}`;
                                                         } else if (grade) {
-                                                          dateText = `Schedule for Grade ${grade} - Week ${getWeekNumber(currentDay)}`;
+                                                          dateText = `Schedule for Grade ${grade} - Week ${getWeekNumber(currentDay)} ${dateRange}`;
                                                         }
                                                         
                                                         pdf.setFontSize(12);
@@ -1142,6 +1149,7 @@
                                                                 const componentToRender = <GradeScheduleView grade={grade} schedules={schedules} subjects={subjects} teachers={teachers} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} handleOpenModal={handleOpenModal} isEditor={isEditor} />;
                                                                 return new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generate())));
                                                               } else {
+                                                                // For "All Teachers", we now send individual emails, so this case is for the general schedule view if needed elsewhere
                                                                 return generatePDF(true, null, null);
                                                               }
                                                             };
@@ -2168,6 +2176,17 @@
                                                                                                               <Modal open={isSendMailModalOpen} onClose={handleCloseMailModal}>
                                                                                                                 <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
                                                                                                                     <Typography variant="h6" component="h2" sx={{mb: 2}}>Send Schedule via Email</Typography>
+                                                                                                                    <TextField
+                                                                                                                        label="Email Body"
+                                                                                                                        multiline
+                                                                                                                        rows={6}
+                                                                                                                        value={emailBody}
+                                                                                                                        onChange={(e) => setEmailBody(e.target.value)}
+                                                                                                                        fullWidth
+                                                                                                                        variant="outlined"
+                                                                                                                        sx={{ mb: 2 }}
+                                                                                                                    />
+                                                                                                                    <Typography variant="subtitle1" sx={{ mb: 1 }}>Recipients</Typography>
                                                                                                                     <Box sx={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ccc', p: 1, mb: 2 }}>
                                                                                                                         {emailRecipients.map(r => (
                                                                                                                             <FormControlLabel
@@ -2180,19 +2199,10 @@
                                                                                                                                         }}
                                                                                                                                     />
                                                                                                                                 }
-                                                                                                                                label={r.name}
+                                                                                                                                label={r.email ? `${r.name} (${r.email})` : r.name}
                                                                                                                             />
                                                                                                                         ))}
                                                                                                                     </Box>
-                                                                                                                    <TextField
-                                                                                                                        label="Email Body"
-                                                                                                                        multiline
-                                                                                                                        rows={6}
-                                                                                                                        value={emailBody}
-                                                                                                                        onChange={(e) => setEmailBody(e.target.value)}
-                                                                                                                        fullWidth
-                                                                                                                        variant="outlined"
-                                                                                                                    />
                                                                                                                     <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
                                                                                                                         <Button onClick={handleCloseMailModal} sx={{mr: 1}}>Cancel</Button>
                                                                                                                         <Button variant="contained" onClick={handleSendMail} disabled={sendingMail}>
