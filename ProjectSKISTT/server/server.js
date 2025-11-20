@@ -6,7 +6,6 @@ import { google } from 'googleapis'
 import { MongoClient, ObjectId } from 'mongodb'
 import express from 'express'
 import cors from 'cors'
-import bodyParser from 'body-parser'
 import sgMail from '@sendgrid/mail'; // Import SendGrid Mail
 
 // --- Google OAuth 2.0 Configuration ---
@@ -28,7 +27,6 @@ const oauth2Client = new google.auth.OAuth2(
 const app = express()
 app.use(cors()) // Enable CORS for all routes
 app.use(express.json({ limit: '25mb' }))
-app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // --- MongoDB Connection ---
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -89,7 +87,7 @@ app.put('/api/email_text/:id', async (req, res) => {
 });
 
 // POST to send schedule email
-app.post('/api/send-schedule', bodyParser.json({ limit: '25mb' }), async (req, res) => {
+app.post('/api/send-schedule', async (req, res) => {
     const { emailBody, recipient, subject, fileName, pdfDataUri } = req.body;
 
     if (!SENDGRID_API_KEY || !SENDER_EMAIL) {
