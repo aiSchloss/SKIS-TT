@@ -336,7 +336,10 @@
                                                         return `${day}.${month}.${year}`;
                                                       };
                                                       const getEventsForCell = (grade, timeSlotId) => {
-                                                          const dayString = currentDay.toISOString().split('T')[0];
+                                                          const year = currentDay.getFullYear();
+                                                          const month = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                          const date = String(currentDay.getDate()).padStart(2, '0');
+                                                          const dayString = `${year}-${month}-${date}`;
                                                           let events = schedules.filter(event => event.day === dayString && event.grade === grade && event.timeSlotId === timeSlotId);
                                                           if (selectedTeacher) {
                                                             events = events.filter(event => event.teacherId === selectedTeacher);
@@ -410,7 +413,11 @@
                                                       const handleSubmit = () => { if (editingEvent) { handleUpdate(); } else { handleCreate(); } };
 
                                                       const handleCreate = () => {
-                                                        const payload = { ...newEvent, day: currentDay.toISOString().split('T')[0] };
+                                                        const year = currentDay.getFullYear();
+                                                        const month = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                        const date = String(currentDay.getDate()).padStart(2, '0');
+                                                        const dayString = `${year}-${month}-${date}`;
+                                                        const payload = { ...newEvent, day: dayString };
                                                         const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
                                                         if (conflictingEvent) {
                                                             const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s.id === conflictingEvent.subjectId)?.name;
@@ -723,8 +730,17 @@
                                                       const handleCloseCopyModal = () => { setIsCopyModalOpen(false); setCopyTargetDate(null); };
                                                       const handlePasteDay = async () => {
                                                         if (!copyTargetDate) { alert('Please select a target date.'); return; }
-                                                        const sourceDayString = currentDay.toISOString().split('T')[0]; 
-                                                        const targetDayString = copyTargetDate.toISOString().split('T')[0];
+                                                        
+                                                        const sourceYear = currentDay.getFullYear();
+                                                        const sourceMonth = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                        const sourceDate = String(currentDay.getDate()).padStart(2, '0');
+                                                        const sourceDayString = `${sourceYear}-${sourceMonth}-${sourceDate}`;
+
+                                                        const targetYear = copyTargetDate.getFullYear();
+                                                        const targetMonth = String(copyTargetDate.getMonth() + 1).padStart(2, '0');
+                                                        const targetDate = String(copyTargetDate.getDate()).padStart(2, '0');
+                                                        const targetDayString = `${targetYear}-${targetMonth}-${targetDate}`;
+                                                        
                                                         const eventsToCopy = schedules.filter(event => event.day === sourceDayString);
                                                         
                                                         if (eventsToCopy.length === 0) { 
@@ -770,7 +786,10 @@
                                                       
                                                       const handleCleanDay = async () => {
                                                         if (!isEditor) return;
-                                                        const dayString = currentDay.toISOString().split('T')[0];
+                                                        const year = currentDay.getFullYear();
+                                                        const month = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                        const date = String(currentDay.getDate()).padStart(2, '0');
+                                                        const dayString = `${year}-${month}-${date}`;
                                                         if (confirm(`Are you sure you want to delete all events for ${formatDate(currentDay)}? This cannot be undone.`)) {
                                                           try {
                                                             const response = await fetch(`${API_URL}/schedules/by-day`, {
@@ -812,14 +831,21 @@
                                                                           for (let i = 0; i < 5; i++) { // Loop from Monday to Friday
                                                                               const sourceDate = new Date(mondayOfSourceWeek);
                                                                               sourceDate.setDate(mondayOfSourceWeek.getDate() + i);
-                                                                              const sourceDateString = sourceDate.toISOString().split('T')[0];
+                                                                              const sourceYear = sourceDate.getFullYear();
+                                                                              const sourceMonth = String(sourceDate.getMonth() + 1).padStart(2, '0');
+                                                                              const sourceDay = String(sourceDate.getDate()).padStart(2, '0');
+                                                                              const sourceDateString = `${sourceYear}-${sourceMonth}-${sourceDay}`;
                                                                   
                                                                               const eventsForSourceDay = schedules.filter(event => event.day === sourceDateString);
                                                                               
                                                                               if (eventsForSourceDay.length > 0) {
                                                                                   const targetDate = new Date(mondayOfTargetWeek);
                                                                                   targetDate.setDate(mondayOfTargetWeek.getDate() + i);
-                                                                                  const targetDateString = targetDate.toISOString().split('T')[0];
+                                                                                  const targetYear = targetDate.getFullYear();
+                                                                                  const targetMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
+                                                                                  const targetDay = String(targetDate.getDate()).padStart(2, '0');
+                                                                                  const targetDateString = `${targetYear}-${targetMonth}-${targetDay}`;
+
                                                                                   const newEventsForTargetDay = eventsForSourceDay.map(({ _id, ...event }) => ({
                                                                                       ...event,
                                                                                       day: targetDateString
@@ -840,7 +866,10 @@
                                                                               for (let i = 0; i < 5; i++) {
                                                                                   const targetDate = new Date(mondayOfTargetWeek);
                                                                                   targetDate.setDate(mondayOfTargetWeek.getDate() + i);
-                                                                                  const targetDateString = targetDate.toISOString().split('T')[0];
+                                                                                  const targetYear = targetDate.getFullYear();
+                                                                                  const targetMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
+                                                                                  const targetDay = String(targetDate.getDate()).padStart(2, '0');
+                                                                                  const targetDateString = `${targetYear}-${targetMonth}-${targetDay}`;
                                                                                   deletePromises.push(
                                                                                       fetch(`${API_URL}/schedules/by-day`, {
                                                                                           method: 'DELETE',
@@ -1294,7 +1323,10 @@
       // ===================================================================================
       const SingleDayView = ({ day, schedules, subjects, teachers, rooms, grades, timeSlots, handleOpenModal, isEditor, darkGrayCellStyle }) => {
         const getEventsForDay = (grade, timeSlotId) => {
-          const dayString = day.toISOString().split('T')[0];
+          const year = day.getFullYear();
+          const month = String(day.getMonth() + 1).padStart(2, '0');
+          const date = String(day.getDate()).padStart(2, '0');
+          const dayString = `${year}-${month}-${date}`;
           return schedules.filter(event => event.day === dayString && event.grade === grade && event.timeSlotId === timeSlotId);
         };
 
