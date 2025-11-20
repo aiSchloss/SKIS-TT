@@ -1258,6 +1258,19 @@
 
                                                         setSendingMail(true);
 
+                                                        const monday = new Date(currentDay);
+                                                        while (monday.getDay() !== 1) {
+                                                          monday.setDate(monday.getDate() - 1);
+                                                        }
+                                                        monday.setHours(0, 0, 0, 0);
+
+                                                        const friday = new Date(monday);
+                                                        friday.setDate(monday.getDate() + 4);
+                                                        friday.setHours(23, 59, 59, 999);
+
+                                                        const dateRangeFormatted = `(${formatDate(monday)}-${formatDate(friday)})`;
+                                                        const weekNumber = getWeekNumber(currentDay);
+
                                                         const isSendingToAll = recipients.some(r => r.id === 'all-teachers');
 
                                                         if (isSendingToAll) {
@@ -1265,8 +1278,8 @@
                                                           const allTeachersRecipient = recipients.find(r => r.id === 'all-teachers');
                                                           try {
                                                             const pdfDataUri = await generateWeeklyPDF(true);
-                                                            const subject = `Weekly Schedule`;
-                                                            const fileName = `Weekly_Schedule_W${getWeekNumber(currentDay)}.pdf`;
+                                                            const subject = `SKIK Week ${weekNumber} Schedule ${dateRangeFormatted}`;
+                                                            const fileName = `SKIK_Week_${weekNumber}_Schedule_${dateRangeFormatted}.pdf`;
 
                                                             const response = await fetch(`${API_URL}/send-schedule`, {
                                                               method: 'POST',
@@ -1294,8 +1307,8 @@
 
                                                               if (!pdfDataUri) throw new Error('PDF generation failed.');
 
-                                                              const subject = `Your Schedule for Week ${getWeekNumber(currentDay)}`;
-                                                              const fileName = `Schedule_${recipient.name.replace(/\s/g, '_')}.pdf`;
+                                                              const subject = `SKIK Week ${weekNumber} Schedule ${dateRangeFormatted}`;
+                                                              const fileName = `SKIK_Week_${weekNumber}_${recipient.name.replace(/\s/g, '_')}_Schedule_${dateRangeFormatted}.pdf`;
 
                                                               const response = await fetch(`${API_URL}/send-schedule`, {
                                                                 method: 'POST',
