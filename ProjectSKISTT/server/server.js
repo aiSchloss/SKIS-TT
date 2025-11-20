@@ -6,7 +6,7 @@ import { google } from 'googleapis'
 import { MongoClient, ObjectId } from 'mongodb'
 import express from 'express'
 import cors from 'cors'
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail'; // Import SendGrid Mail
 
 // --- Google OAuth 2.0 Configuration ---
 // IMPORTANT: Replace with your own credentials from Google Cloud Console
@@ -51,21 +51,16 @@ async function connectToMongo() {
 
 connectToMongo();
 
+// --- SendGrid Setup ---
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+const SENDER_EMAIL = process.env.SENDER_EMAIL;
 
-// Nodemailer setup for testing with Ethereal
-// This will create a test account and log the credentials to the console
-// and open a preview URL to see the sent email.
-let transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // Use `true` for port 465, `false` for other ports like 587
-    auth: {
-        user: "schedule@krumbach.school",
-        pass: process.env.GMAIL_APP_PASSWORD // Use App Password from environment variable
-    }
-});
-
-
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+  console.log('SendGrid API Key set.');
+} else {
+  console.warn('SENDGRID_API_KEY environment variable is not set. Email sending will not work.');
+}
 
 // --- API Endpoints for the schedule ---
 
@@ -95,8 +90,8 @@ app.put('/api/email_text/:id', async (req, res) => {
 app.post('/api/send-schedule', express.json({ limit: '50mb' }), async (req, res) => {
     const { emailBody, recipient, subject, fileName, pdfDataUri } = req.body;
 
-    if (!transporter) {
-        return res.status(503).json({ message: 'Email service is not ready yet.' });
+    if (!SENDGRID_API_KEY || !SENDER_EMAIL) {
+        return res.status(503).json({ message: 'Email service is not configured. SENDGRID_API_KEY or SENDER_EMAIL is missing.' });
     }
     if (!recipient || !recipient.email) {
         return res.status(400).json({ message: 'Recipient is not valid.' });
@@ -106,31 +101,30 @@ app.post('/api/send-schedule', express.json({ limit: '50mb' }), async (req, res)
     }
 
     try {
-        // The data URI has a prefix like "data:application/pdf;base64," which we need to remove.
         const base64Data = pdfDataUri.split(';base64,').pop();
 
-        const mailOptions = {
-            from: '"SKIS Schedule" <schedule@krumbach.school>',
+        const msg = {
             to: recipient.email,
+            from: SENDER_EMAIL, // Use the verified sender email
             subject: subject,
-            text: emailBody,
-            attachments: [{
-                filename: fileName,
-                content: base64Data,
-                encoding: 'base64',
-                contentType: 'application/pdf'
-            }]
+            html: `<p>${emailBody.replace(/\n/g, '<br>')}</p>`, // Convert newlines to <br> for HTML email
+            attachments: [
+                {
+                    content: base64Data,
+                    filename: fileName,
+                    type: 'application/pdf',
+                    disposition: 'attachment',
+                },
+            ],
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`Message sent to ${recipient.email}: %s`, info.messageId);
-        // For Gmail, there's no direct preview URL like with Ethereal.
-        // You'll need to check the actual inbox.
+        await sgMail.send(msg);
+        console.log(`Email sent to ${recipient.email} via SendGrid.`);
 
         res.status(200).json({ message: `Email sent successfully to ${recipient.email}!` });
 
     } catch (error) {
-        console.error(`Error sending schedule email to ${recipient.email}:`, error);
+        console.error(`Error sending schedule email to ${recipient.email} via SendGrid:`, error);
         res.status(500).json({ message: 'Failed to send email.', error: error.message });
     }
 });
