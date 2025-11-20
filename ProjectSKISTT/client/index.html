@@ -531,8 +531,8 @@
                                                         document.head.appendChild(style);
                                                         table.classList.add('export-style');
 
-                                                        const canvas = await html2canvas(table, { scale: 1.5 });
-                                                        const imgData = canvas.toDataURL('image/png');
+                                                        const canvas = await html2canvas(table, { scale: 1 });
+                                                        const imgData = canvas.toDataURL('image/jpeg', 0.8);
                                                         
                                                         table.classList.remove('export-style');
                                                         document.head.removeChild(style);
@@ -622,8 +622,8 @@
                                                               document.head.appendChild(style);
                                                               table.classList.add('export-style');
 
-                                                              const canvas = await html2canvas(table, { scale: 1.5 });
-                                                              const imgData = canvas.toDataURL('image/png');
+                                                              const canvas = await html2canvas(table, { scale: 1 });
+                                                              const imgData = canvas.toDataURL('image/jpeg', 0.8);
                                                               
                                                               table.classList.remove('export-style');
                                                               document.head.removeChild(style);
