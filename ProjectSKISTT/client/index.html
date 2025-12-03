@@ -404,7 +404,7 @@
                                                         const { name, value } = e.target; 
                                                         const updatedEvent = { ...newEvent, [name]: value }; 
                                                         if (name === 'subjectId') { 
-                                                          const selectedSubject = subjects.find(s => s.id === value); 
+                                                          const selectedSubject = subjects.find(s => s._id === value); 
                                                           if (selectedSubject) { updatedEvent.color = selectedSubject.color; } 
                                                         } 
                                                         setNewEvent(updatedEvent); 
@@ -420,8 +420,8 @@
                                                         const payload = { ...newEvent, day: dayString };
                                                         const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
                                                         if (conflictingEvent) {
-                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s.id === conflictingEvent.subjectId)?.name;
-                                                            const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
+                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                 
                                                             if (existingSubjectName !== newSubjectName) {
                                                                 alert('This room is already booked for this time slot with a different subject.');
@@ -437,8 +437,8 @@
                                                                 event.teacherId === payload.teacherId
                                                             );
                                                             if (teacherConflictEvent) {
-                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s.id === teacherConflictEvent.subjectId)?.name;
-                                                                const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
+                                                                const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                                 if (existingSubjectName !== newSubjectName) {
                                                                     alert('This teacher is already assigned to a different subject at this time.');
                                                                     return;
@@ -448,7 +448,7 @@
                                                         if (payload.customSubject) { payload.subjectId = null; }
                                                         if (payload.customTeacher) { payload.teacherId = null; }
                                                         if (payload.customRoom) { payload.roomId = null; }
-                                                        if (payload.color === '#ffffff' && payload.subjectId) { const selectedSubject = subjects.find(s => s.id === payload.subjectId); if (selectedSubject) { payload.color = selectedSubject.color; } }
+                                                        if (payload.color === '#ffffff' && payload.subjectId) { const selectedSubject = subjects.find(s => s._id === payload.subjectId); if (selectedSubject) { payload.color = selectedSubject.color; } }
                                                         fetch(`${API_URL}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
                                                         .then(res => res.json()).then(() => { fetchData(); handleCloseModal(); }).catch(err => console.error("Failed to save event", err));
                                                       };
@@ -457,8 +457,8 @@
                                                         const { _id, ...payload } = newEvent;
                                                         const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId && event.id !== editingEvent.id);
                                                         if (conflictingEvent) {
-                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s.id === conflictingEvent.subjectId)?.name;
-                                                            const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
+                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                 
                                                             if (existingSubjectName !== newSubjectName) {
                                                                 alert('This room is already booked for this time slot with a different subject.');
@@ -475,8 +475,8 @@
                                                                 event.id !== editingEvent.id
                                                             );
                                                             if (teacherConflictEvent) {
-                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s.id === teacherConflictEvent.subjectId)?.name;
-                                                                const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
+                                                                const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                                 if (existingSubjectName !== newSubjectName) {
                                                                     alert('This teacher is already assigned to a different subject at this time.');
                                                                     return;
@@ -907,7 +907,7 @@
 
                                                       // SUBJECT HANDLERS
                                                       const handleOpenUsageModal = (subjectId) => {
-                                                        const subject = subjects.find(s => s.id === subjectId);
+                                                        const subject = subjects.find(s => s._id === subjectId);
                                                         if (!subject) return;
                                                     
                                                         const usageDates = schedules
@@ -999,7 +999,7 @@
                                                             }));
                                                           } else {
                                                             // Existing subject, check for changes
-                                                            const original = originalSubjects.find(s => s.id === subject._id);
+                                                            const original = originalSubjects.find(s => s._id === subject._id);
                                                             if (original && (original.name !== subject.name || original.color !== subject.color || original.order !== index)) {
                                                               changes.push(fetch(`${API_URL}/subjects/${subject._id}`, {
                                                                 method: 'PUT',
@@ -1168,7 +1168,7 @@
                                                               body: JSON.stringify({ name: room.name, order: index })
                                                             }));
                                                           } else { // Existing room
-                                                            const original = originalRooms.find(r => r.id === room._id);
+                                                            const original = originalRooms.find(r => r._id === room._id);
                                                             if (original && (original.name !== room.name || original.order !== index)) {
                                                               changes.push(fetch(`${API_URL}/rooms/${room._id}`, {
                                                                 method: 'PUT',
@@ -1203,7 +1203,7 @@
                                                       };
 
                                                       const handleOpenRoomUsageModal = (roomId) => {
-                                                        const room = rooms.find(r => r.id === roomId);
+                                                        const room = rooms.find(r => r._id === roomId);
                                                         if (!room) return;
 
                                                         const usageDates = schedules
@@ -1297,7 +1297,7 @@
                                                           for (const recipient of recipients) {
                                                             try {
                                                               const pdfContainer = document.getElementById('pdf-container');
-                                                              const teacher = teachers.find(t => t.id === recipient.id);
+                                                              const teacher = teachers.find(t => t._id === recipient.id);
                                                               if (!teacher) continue; // Skip if not a valid teacher
 
                                                               const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={() => {}} isEditor={isEditor} />;
@@ -1366,9 +1366,9 @@
                           cellContent = (
                             <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
                               {events.map(event => {
-                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
                                   <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
@@ -1381,9 +1381,9 @@
                           );
                         } else if (events.length === 1) {
                           const event = events[0];
-                          const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                          const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                          const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                          const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                          const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                          const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                           const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                           cellContent = (
                             <Box key={event._id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
@@ -1467,8 +1467,8 @@
                           cellContent = (
                             <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
                               {events.map(event => {
-                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
                                   <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
@@ -1560,9 +1560,9 @@
                           cellContent = (
                             <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
                               {events.map(event => {
-                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
                                   <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
@@ -1729,7 +1729,7 @@
             )}
             {selectedTeacher ? (
               <TeacherScheduleView 
-                teacher={teachers.find(t => t && t.id === selectedTeacher)}
+                teacher={teachers.find(t => t && t._id === selectedTeacher)}
                 schedules={schedules}
                 subjects={subjects}
                 timeSlots={timeSlots}
@@ -1775,9 +1775,9 @@
                                   cellContent = (
                                       <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
                                           {events.map(event => {
-                                              const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                              const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                                              const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                              const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                              const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                              const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                               const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                               return (
                                                   <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
@@ -1791,9 +1791,9 @@
                               } else if (events.length === 1) {
                                   // Original logic for a single event
                                   const event = events[0];
-                                  const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                  const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                                  const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                  const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                  const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                  const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                   const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                   cellContent = (
                                       <Box key={event._id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
