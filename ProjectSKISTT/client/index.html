@@ -1436,7 +1436,7 @@
         });
 
         const teacherSchedules = schedules.filter(event => 
-          event.teacherId === teacher.id && weekDateStrings.includes(event.day)
+          event.teacherId === teacher._id && weekDateStrings.includes(event.day)
         );
 
         return (
