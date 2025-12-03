@@ -454,7 +454,7 @@
                                                       };
 
                                                       const handleUpdate = () => {
-                                                        const payload = { ...newEvent };
+                                                        const { _id, ...payload } = newEvent;
                                                         const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId && event.id !== editingEvent.id);
                                                         if (conflictingEvent) {
                                                             const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s.id === conflictingEvent.subjectId)?.name;
@@ -1671,7 +1671,7 @@
                           <em>All Teachers</em>
                         </MenuItem>
                         {teachers.map(teacher => (
-                          teacher && <MenuItem key={teacher._id} value={teacher.id}>{teacher.name}</MenuItem>
+                          teacher && <MenuItem key={teacher._id} value={teacher._id}>{teacher.name}</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -1825,11 +1825,11 @@
                     <Grid container spacing={2}>
                         <Grid item xs={6}><FormControl fullWidth><InputLabel>Grade</InputLabel><Select name="grade" value={newEvent.grade} label="Grade" onChange={handleFormChange}>{grades.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><FormControl fullWidth><InputLabel>Time Slot</InputLabel><Select name="timeSlotId" value={newEvent.timeSlotId} label="Time Slot" onChange={handleFormChange}>{timeSlots.filter(t=>typeof t.id === 'number').map(t => <MenuItem key={t.id} value={t.id}>{t.time}</MenuItem>)}</Select></FormControl></Grid>
-                        <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={12}><TextField label="Or Custom Event Name" name="customSubject" value={newEvent.customSubject} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><TextField label="Or Custom Teacher" name="customTeacher" value={newEvent.customTeacher} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><TextField label="Or Custom Room" name="customRoom" value={newEvent.customRoom} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
                         <Grid item xs={12}><TextField label="Custom Color" type="color" name="color" value={newEvent.color} onChange={handleFormChange} fullWidth/></Grid>
                     </Grid>
