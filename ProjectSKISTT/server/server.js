@@ -142,11 +142,11 @@ app.get('/api/data', async (req, res) => {
 });
 
 // Helper function to check room availability
-async function checkRoomAvailability(roomId, day, time, grade, currentEventId = null) {
+async function checkRoomAvailability(roomId, day, timeSlotId, grade, currentEventId = null) {
   const query = {
     roomId: roomId,
     day: day,
-    time: time,
+    timeSlotId: timeSlotId,
     grade: grade
   };
 
@@ -162,11 +162,11 @@ async function checkRoomAvailability(roomId, day, time, grade, currentEventId = 
 app.post('/api/events', async (req, res) => {
   try {
     const newEvent = req.body;
-    const { roomId, day, time, grade } = newEvent;
+    const { roomId, day, timeSlotId, grade } = newEvent;
 
     // Only check room availability if roomId and grade are provided
     if (roomId && grade) {
-      const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade);
+      const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade);
       if (!isRoomAvailable) {
         return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
       }
@@ -200,11 +200,11 @@ app.put('/api/events/:id', async (req, res) => {
     try {
         const eventId = req.params.id;
         const updatedEvent = req.body;
-        const { roomId, day, time, grade } = updatedEvent;
+        const { roomId, day, timeSlotId, grade } = updatedEvent;
 
         // Only check room availability if roomId and grade are provided
         if (roomId && grade) {
-            const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade, eventId);
+            const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade, eventId);
             if (!isRoomAvailable) {
                 return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
             }
