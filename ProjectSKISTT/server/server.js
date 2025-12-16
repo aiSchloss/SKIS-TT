@@ -141,13 +141,39 @@ app.get('/api/data', async (req, res) => {
   res.json({ schedules, teachers, subjects, rooms, grades });
 });
 
+// Helper function to check room availability
+async function checkRoomAvailability(roomId, day, time, grade, currentEventId = null) {
+  const query = {
+    roomId: roomId,
+    day: day,
+    time: time,
+    grade: grade
+  };
+
+  if (currentEventId) {
+    query._id = { $ne: new ObjectId(currentEventId) };
+  }
+
+  const existingEvent = await db.collection('schedules').findOne(query);
+  return !existingEvent; // Returns true if available, false if not
+}
+
 // POST a new event
 app.post('/api/events', async (req, res) => {
   try {
     const newEvent = req.body;
+    const { roomId, day, time, grade } = newEvent;
+
+    // Check room availability
+    const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade);
+    if (!isRoomAvailable) {
+      return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
+    }
+
     const result = await db.collection('schedules').insertOne(newEvent);
     res.status(201).json({ ...newEvent, _id: result.insertedId });
   } catch (error) {
+    console.error('Error saving event:', error);
     res.status(500).json({ message: 'Error saving event' });
   }
 });
@@ -171,17 +197,27 @@ app.post('/api/events/batch', async (req, res) => {
 app.put('/api/events/:id', async (req, res) => {
     try {
         const eventId = req.params.id;
+        const updatedEvent = req.body;
+        const { roomId, day, time, grade } = updatedEvent;
+
+        // Check room availability, excluding the current event being updated
+        const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade, eventId);
+        if (!isRoomAvailable) {
+            return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
+        }
+
         const result = await db.collection('schedules').updateOne(
             { _id: new ObjectId(eventId) },
-            { $set: req.body }
+            { $set: updatedEvent }
         );
 
         if (result.matchedCount === 0) {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        res.json({ ...req.body, _id: eventId });
+        res.json({ ...updatedEvent, _id: eventId });
     } catch (error) {
+        console.error('Error updating event:', error);
         res.status(500).json({ message: 'Error updating event' });
     }
 });
