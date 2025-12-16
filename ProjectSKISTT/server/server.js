@@ -164,10 +164,12 @@ app.post('/api/events', async (req, res) => {
     const newEvent = req.body;
     const { roomId, day, time, grade } = newEvent;
 
-    // Check room availability
-    const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade);
-    if (!isRoomAvailable) {
-      return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
+    // Only check room availability if roomId and grade are provided
+    if (roomId && grade) {
+      const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade);
+      if (!isRoomAvailable) {
+        return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
+      }
     }
 
     const result = await db.collection('schedules').insertOne(newEvent);
@@ -200,10 +202,12 @@ app.put('/api/events/:id', async (req, res) => {
         const updatedEvent = req.body;
         const { roomId, day, time, grade } = updatedEvent;
 
-        // Check room availability, excluding the current event being updated
-        const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade, eventId);
-        if (!isRoomAvailable) {
-            return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
+        // Only check room availability if roomId and grade are provided
+        if (roomId && grade) {
+            const isRoomAvailable = await checkRoomAvailability(roomId, day, time, grade, eventId);
+            if (!isRoomAvailable) {
+                return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
+            }
         }
 
         const result = await db.collection('schedules').updateOne(
