@@ -143,54 +143,39 @@ app.get('/api/data', async (req, res) => {
 
 // Helper function to check room availability
 async function checkRoomAvailability(roomId, day, timeSlotId, grade, currentEventId = null) {
-  console.log('[checkRoomAvailability] Checking for:', { roomId, day, timeSlotId, grade, currentEventId });
   const query = {
     roomId: roomId,
     day: day,
     timeSlotId: timeSlotId,
-    grade: grade
+    grade: parseInt(grade, 10)
   };
 
   if (currentEventId) {
     query._id = { $ne: new ObjectId(currentEventId) };
   }
-  console.log('[checkRoomAvailability] Query:', query);
 
   const existingEvent = await db.collection('schedules').findOne(query);
-  console.log('[checkRoomAvailability] Found existing event:', existingEvent);
-
-  const isAvailable = !existingEvent;
-  console.log('[checkRoomAvailability] Room available:', isAvailable);
-  return isAvailable;
+  return !existingEvent; // Returns true if available, false if not
 }
 
 // POST a new event
 app.post('/api/events', async (req, res) => {
-  console.log('[POST /api/events] Received request body:', req.body);
   try {
     const newEvent = req.body;
     const { roomId, day, timeSlotId, grade } = newEvent;
-    console.log('[POST /api/events] Destructured values:', { roomId, day, timeSlotId, grade });
 
     // Only check room availability if roomId and grade are provided
     if (roomId && grade) {
-      console.log('[POST /api/events] Both roomId and grade are present. Checking availability.');
       const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade);
       if (!isRoomAvailable) {
-        console.log('[POST /api/events] Room is not available. Returning 400.');
         return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
       }
-      console.log('[POST /api/events] Room is available.');
-    } else {
-      console.log('[POST /api/events] Skipped room availability check because roomId or grade is missing.');
     }
 
-    console.log('[POST /api/events] Proceeding to insert event into database.');
     const result = await db.collection('schedules').insertOne(newEvent);
-    console.log('[POST /api/events] Insert successful. Result:', result);
     res.status(201).json({ ...newEvent, _id: result.insertedId });
   } catch (error) {
-    console.error('[POST /api/events] Error saving event:', error);
+    console.error('Error saving event:', error);
     res.status(500).json({ message: 'Error saving event' });
   }
 });
@@ -212,46 +197,33 @@ app.post('/api/events/batch', async (req, res) => {
 
 // PUT (update) an event
 app.put('/api/events/:id', async (req, res) => {
-    console.log(`[PUT /api/events/${req.params.id}] Received request body:`, req.body);
     try {
         const eventId = req.params.id;
         const updatedEvent = req.body;
         const { roomId, day, timeSlotId, grade } = updatedEvent;
-        console.log(`[PUT /api/events/${eventId}] Destructured values:`, { roomId, day, timeSlotId, grade });
 
         // Only check room availability if roomId and grade are provided
         if (roomId && grade) {
-            console.log(`[PUT /api/events/${eventId}] Both roomId and grade are present. Checking availability.`);
             const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade, eventId);
             if (!isRoomAvailable) {
-                console.log(`[PUT /api/events/${eventId}] Room is not available. Returning 400.`);
                 return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
             }
-            console.log(`[PUT /api/events/${eventId}] Room is available.`);
-        } else {
-            console.log(`[PUT /api/events/${eventId}] Skipped room availability check because roomId or grade is missing.`);
         }
-
-        console.log(`[PUT /api/events/${eventId}] Proceeding to update event in database.`);
-        // Ensure _id is not in the $set payload
+        
         const payload = { ...updatedEvent };
-        delete payload._id;
 
         const result = await db.collection('schedules').updateOne(
             { _id: new ObjectId(eventId) },
             { $set: payload }
         );
-        console.log(`[PUT /api/events/${eventId}] Update result:`, result);
-
 
         if (result.matchedCount === 0) {
-            console.log(`[PUT /api/events/${eventId}] Event not found. Returning 404.`);
             return res.status(404).json({ message: 'Event not found' });
         }
 
         res.json({ ...updatedEvent, _id: eventId });
     } catch (error) {
-        console.error(`[PUT /api/events/:id] Error updating event:`, error);
+        console.error('Error updating event:', error);
         res.status(500).json({ message: 'Error updating event' });
     }
 });
