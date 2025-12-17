@@ -209,15 +209,6 @@ app.put('/api/events/:id', async (req, res) => {
     try {
         const eventId = req.params.id;
         const updatedEvent = req.body;
-        const { roomId, day, timeSlotId, grade } = updatedEvent;
-
-        // Only check room availability if roomId is present and grade is a valid number
-        if (roomId && grade && !isNaN(parseInt(grade, 10))) {
-            const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade, eventId);
-            if (!isRoomAvailable) {
-                return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
-            }
-        }
         
         const payload = { ...updatedEvent };
         // Ensure numeric types before saving
