@@ -450,7 +450,18 @@
                                                         if (payload.customRoom) { payload.roomId = null; }
                                                         if (payload.color === '#ffffff' && payload.subjectId) { const selectedSubject = subjects.find(s => s._id === payload.subjectId); if (selectedSubject) { payload.color = selectedSubject.color; } }
                                                         fetch(`${API_URL}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-                                                        .then(res => res.json()).then(() => { fetchData(); handleCloseModal(); }).catch(err => console.error("Failed to save event", err));
+                                                        .then(res => {
+                                                            if (!res.ok) {
+                                                                return res.json().then(err => { throw new Error(err.message || 'An unexpected error occurred during creation.') });
+                                                            }
+                                                            return res.json();
+                                                        })
+                                                        .then(() => { fetchData(); handleCloseModal(); })
+                                                        .catch(err => {
+                                                            console.error("Failed to save event", err);
+                                                            alert(`Error: ${err.message}`);
+                                                            // Do not close modal here, let user correct input
+                                                        });
                                                       };
 
                                                       const handleUpdate = () => {
@@ -488,7 +499,18 @@
                                                         if (payload.customTeacher) { payload.teacherId = null; }
                                                         if (payload.customRoom) { payload.roomId = null; }
                                                         fetch(`${API_URL}/events/${editingEvent._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-                                                        .then(res => res.json()).then(() => { fetchData(); handleCloseModal(); }).catch(err => console.error("Failed to update event", err));
+                                                        .then(res => {
+                                                            if (!res.ok) {
+                                                                return res.json().then(err => { throw new Error(err.message || 'An unexpected error occurred during update.') });
+                                                            }
+                                                            return res.json();
+                                                        })
+                                                        .then(() => { fetchData(); handleCloseModal(); })
+                                                        .catch(err => {
+                                                            console.error("Failed to update event", err);
+                                                            alert(`Error: ${err.message}`);
+                                                            // Do not close modal here, let user correct input
+                                                        });
                                                       };
 
                                                       const handleDelete = () => {
