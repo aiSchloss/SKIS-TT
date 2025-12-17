@@ -141,40 +141,41 @@ app.get('/api/data', async (req, res) => {
   res.json({ schedules, teachers, subjects, rooms, grades });
 });
 
-// Helper function to check room availability
-async function checkRoomAvailability(roomId, day, timeSlotId, grade, currentEventId = null) {
+// Helper function to check for teacher conflicts
+async function checkTeacherConflict(teacherId, day, timeSlotId, currentEventId = null) {
   const query = {
-    roomId: roomId,
+    teacherId: teacherId,
     day: day,
     timeSlotId: parseInt(timeSlotId, 10),
-    grade: parseInt(grade, 10)
   };
 
   if (currentEventId) {
     query._id = { $ne: new ObjectId(currentEventId) };
   }
 
-  const existingEvent = await db.collection('schedules').findOne(query);
-  return !existingEvent; // Returns true if available, false if not
+  // Find a potential conflicting event
+  const conflictingEvent = await db.collection('schedules').findOne(query);
+  return conflictingEvent; // Returns the conflicting event object or null
 }
 
 // POST a new event
 app.post('/api/events', async (req, res) => {
   try {
     const newEvent = req.body;
-    const { roomId, day, timeSlotId, grade } = newEvent;
+    const { teacherId, day, timeSlotId, roomId } = newEvent;
 
-    // Only check room availability if roomId is present and grade is a valid number
-    if (roomId && grade && !isNaN(parseInt(grade, 10))) {
-      const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade);
-      if (!isRoomAvailable) {
-        return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
+    // --- Teacher Conflict Validation ---
+    if (teacherId && timeSlotId) {
+      const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId);
+      // A conflict exists if there's an event with the same teacher at the same time in a DIFFERENT room.
+      if (conflictingEvent && conflictingEvent.roomId !== roomId) {
+        return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
       }
     }
     
     // Ensure numeric types before saving
     if (newEvent.timeSlotId) newEvent.timeSlotId = parseInt(newEvent.timeSlotId, 10);
-    if (newEvent.grade) newEvent.grade = parseInt(newEvent.grade, 10);
+    if (newEvent.grade) newEvent.grade = parseInt(newEvent.grade, 10) || null; // Store as null if not a valid number
 
     const result = await db.collection('schedules').insertOne(newEvent);
     res.status(201).json({ ...newEvent, _id: result.insertedId });
@@ -189,7 +190,7 @@ app.post('/api/events/batch', async (req, res) => {
   try {
     const newEvents = req.body.map(event => {
       if (event.timeSlotId) event.timeSlotId = parseInt(event.timeSlotId, 10);
-      if (event.grade) event.grade = parseInt(event.grade, 10);
+      if (event.grade) event.grade = parseInt(event.grade, 10) || null;
       return event;
     });
 
@@ -209,11 +210,21 @@ app.put('/api/events/:id', async (req, res) => {
     try {
         const eventId = req.params.id;
         const updatedEvent = req.body;
+        const { teacherId, day, timeSlotId, roomId } = updatedEvent;
+
+        // --- Teacher Conflict Validation ---
+        if (teacherId && timeSlotId) {
+            const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId, eventId);
+            // A conflict exists if there's an event with the same teacher at the same time in a DIFFERENT room.
+            if (conflictingEvent && conflictingEvent.roomId !== roomId) {
+                return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
+            }
+        }
         
         const payload = { ...updatedEvent };
         // Ensure numeric types before saving
         if (payload.timeSlotId) payload.timeSlotId = parseInt(payload.timeSlotId, 10);
-        if (payload.grade) payload.grade = parseInt(payload.grade, 10);
+        if (payload.grade) payload.grade = parseInt(payload.grade, 10) || null;
 
         const result = await db.collection('schedules').updateOne(
             { _id: new ObjectId(eventId) },
@@ -224,7 +235,7 @@ app.put('/api/events/:id', async (req, res) => {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        res.json({ ...updatedEvent, _id: eventId });
+        res.json({ ...payload, _id: eventId });
     } catch (error) {
         console.error('Error updating event:', error);
         res.status(500).json({ message: 'Error updating event' });
