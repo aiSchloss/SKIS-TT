@@ -141,6 +141,23 @@ app.get('/api/data', async (req, res) => {
   res.json({ schedules, teachers, subjects, rooms, grades });
 });
 
+// Helper function to check for room availability conflicts
+async function checkRoomAvailability(roomId, day, timeSlotId, grade, currentEventId = null) {
+  const query = {
+    roomId: roomId,
+    day: day,
+    timeSlotId: parseInt(timeSlotId, 10),
+    grade: parseInt(grade, 10)
+  };
+
+  if (currentEventId) {
+    query._id = { $ne: new ObjectId(currentEventId) };
+  }
+
+  const existingEvent = await db.collection('schedules').findOne(query);
+  return !existingEvent; // Returns true if available, false if not
+}
+
 // Helper function to check for teacher conflicts
 async function checkTeacherConflict(teacherId, day, timeSlotId, currentEventId = null) {
   const query = {
@@ -162,12 +179,19 @@ async function checkTeacherConflict(teacherId, day, timeSlotId, currentEventId =
 app.post('/api/events', async (req, res) => {
   try {
     const newEvent = req.body;
-    const { teacherId, day, timeSlotId, roomId } = newEvent;
+    const { roomId, day, timeSlotId, grade, teacherId } = newEvent;
+
+    // --- Room Conflict Validation ---
+    if (roomId && grade && !isNaN(parseInt(grade, 10))) {
+      const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade);
+      if (!isRoomAvailable) {
+        return res.status(400).json({ message: 'Room is already booked for this time and grade.' });
+      }
+    }
 
     // --- Teacher Conflict Validation ---
     if (teacherId && timeSlotId) {
       const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId);
-      // A conflict exists if there's an event with the same teacher at the same time in a DIFFERENT room.
       if (conflictingEvent && conflictingEvent.roomId !== roomId) {
         return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
       }
@@ -210,12 +234,19 @@ app.put('/api/events/:id', async (req, res) => {
     try {
         const eventId = req.params.id;
         const updatedEvent = req.body;
-        const { teacherId, day, timeSlotId, roomId } = updatedEvent;
+        const { roomId, day, timeSlotId, grade, teacherId } = updatedEvent;
+
+        // --- Room Conflict Validation ---
+        if (roomId && grade && !isNaN(parseInt(grade, 10))) {
+            const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade, eventId);
+            if (!isRoomAvailable) {
+                return res.status(400).json({ message: 'Room is already booked for this time and grade.' });
+            }
+        }
 
         // --- Teacher Conflict Validation ---
         if (teacherId && timeSlotId) {
             const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId, eventId);
-            // A conflict exists if there's an event with the same teacher at the same time in a DIFFERENT room.
             if (conflictingEvent && conflictingEvent.roomId !== roomId) {
                 return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
             }
