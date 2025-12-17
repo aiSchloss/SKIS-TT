@@ -142,28 +142,23 @@ app.get('/api/data', async (req, res) => {
 });
 
 // Helper function to check for room availability conflicts
-async function checkRoomAvailability(roomId, day, timeSlotId, grade, currentEventId = null) {
-  console.log('[checkRoomAvailability] Checking for:', { roomId, day, timeSlotId, grade, currentEventId });
+async function checkRoomAvailability(roomId, day, timeSlotId, currentEventId = null) {
   const query = {
     roomId: roomId,
     day: day,
-    timeSlotId: parseInt(timeSlotId, 10),
-    grade: parseInt(grade, 10)
+    timeSlotId: parseInt(timeSlotId, 10)
   };
 
   if (currentEventId) {
     query._id = { $ne: new ObjectId(currentEventId) };
   }
-  console.log('[checkRoomAvailability] Final Query:', JSON.stringify(query));
 
   const existingEvent = await db.collection('schedules').findOne(query);
-  console.log('[checkRoomAvailability] Found existing event:', existingEvent);
   return !existingEvent; // Returns true if available, false if not
 }
 
 // Helper function to check for teacher conflicts
 async function checkTeacherConflict(teacherId, day, timeSlotId, currentEventId = null) {
-  console.log('[checkTeacherConflict] Checking for:', { teacherId, day, timeSlotId, currentEventId });
   const query = {
     teacherId: teacherId,
     day: day,
@@ -173,10 +168,8 @@ async function checkTeacherConflict(teacherId, day, timeSlotId, currentEventId =
   if (currentEventId) {
     query._id = { $ne: new ObjectId(currentEventId) };
   }
-  console.log('[checkTeacherConflict] Final Query:', JSON.stringify(query));
 
   const conflictingEvent = await db.collection('schedules').findOne(query);
-  console.log('[checkTeacherConflict] Found conflicting event:', conflictingEvent);
   return conflictingEvent; // Returns the conflicting event object or null
 }
 
@@ -187,10 +180,10 @@ app.post('/api/events', async (req, res) => {
     const { roomId, day, timeSlotId, grade, teacherId } = newEvent;
 
     // --- Room Conflict Validation ---
-    if (roomId && grade && !isNaN(parseInt(grade, 10))) {
-      const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade);
+    if (roomId && timeSlotId) {
+      const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId);
       if (!isRoomAvailable) {
-        return res.status(400).json({ message: 'Room is already booked for this time and grade.' });
+        return res.status(400).json({ message: 'Room is already booked for this time slot.' });
       }
     }
 
@@ -236,48 +229,36 @@ app.post('/api/events/batch', async (req, res) => {
 
 // PUT (update) an event
 app.put('/api/events/:id', async (req, res) => {
-    console.log(`[PUT /api/events/${req.params.id}] Received request body:`, req.body);
     try {
         const eventId = req.params.id;
         const updatedEvent = req.body;
         const { roomId, day, timeSlotId, grade, teacherId } = updatedEvent;
 
         // --- Room Conflict Validation ---
-        console.log('[PUT] Checking room availability...');
-        if (roomId && grade && !isNaN(parseInt(grade, 10))) {
-            const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade, eventId);
+        if (roomId && timeSlotId) {
+            const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, eventId);
             if (!isRoomAvailable) {
-                console.log('[PUT] Room conflict found. Aborting.');
-                return res.status(400).json({ message: 'Room is already booked for this time and grade.' });
+                return res.status(400).json({ message: 'Room is already booked for this time slot.' });
             }
         }
-        console.log('[PUT] Room availability check passed.');
 
         // --- Teacher Conflict Validation ---
-        console.log('[PUT] Checking teacher conflict...');
         if (teacherId && timeSlotId) {
             const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId, eventId);
             if (conflictingEvent && conflictingEvent.roomId !== roomId) {
-                console.log('[PUT] Teacher conflict found. Aborting.');
                 return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
             }
         }
-        console.log('[PUT] Teacher conflict check passed.');
         
         const payload = { ...updatedEvent };
-        // Redundant safety check: ensure _id is not in the payload for $set
-        delete payload._id;
-
         // Ensure numeric types before saving
         if (payload.timeSlotId) payload.timeSlotId = parseInt(payload.timeSlotId, 10);
         if (payload.grade) payload.grade = parseInt(payload.grade, 10) || null;
 
-        console.log('[PUT] Proceeding to update database with payload:', payload);
         const result = await db.collection('schedules').updateOne(
             { _id: new ObjectId(eventId) },
             { $set: payload }
         );
-        console.log('[PUT] MongoDB update result:', result);
 
         if (result.matchedCount === 0) {
             return res.status(404).json({ message: 'Event not found' });
