@@ -164,8 +164,8 @@ app.post('/api/events', async (req, res) => {
     const newEvent = req.body;
     const { roomId, day, timeSlotId, grade } = newEvent;
 
-    // Only check room availability if roomId and grade are provided
-    if (roomId && grade) {
+    // Only check room availability if roomId is present and grade is a valid number
+    if (roomId && grade && !isNaN(parseInt(grade, 10))) {
       const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade);
       if (!isRoomAvailable) {
         return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
@@ -202,8 +202,8 @@ app.put('/api/events/:id', async (req, res) => {
         const updatedEvent = req.body;
         const { roomId, day, timeSlotId, grade } = updatedEvent;
 
-        // Only check room availability if roomId and grade are provided
-        if (roomId && grade) {
+        // Only check room availability if roomId is present and grade is a valid number
+        if (roomId && grade && !isNaN(parseInt(grade, 10))) {
             const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, grade, eventId);
             if (!isRoomAvailable) {
                 return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
