@@ -146,7 +146,7 @@ async function checkRoomAvailability(roomId, day, timeSlotId, grade, currentEven
   const query = {
     roomId: roomId,
     day: day,
-    timeSlotId: timeSlotId,
+    timeSlotId: parseInt(timeSlotId, 10),
     grade: parseInt(grade, 10)
   };
 
@@ -171,6 +171,10 @@ app.post('/api/events', async (req, res) => {
         return res.status(400).json({ message: 'Room is already booked for this time, day, and grade.' });
       }
     }
+    
+    // Ensure numeric types before saving
+    if (newEvent.timeSlotId) newEvent.timeSlotId = parseInt(newEvent.timeSlotId, 10);
+    if (newEvent.grade) newEvent.grade = parseInt(newEvent.grade, 10);
 
     const result = await db.collection('schedules').insertOne(newEvent);
     res.status(201).json({ ...newEvent, _id: result.insertedId });
@@ -183,7 +187,12 @@ app.post('/api/events', async (req, res) => {
 // POST a batch of new events
 app.post('/api/events/batch', async (req, res) => {
   try {
-    const newEvents = req.body; // Expecting an array of events
+    const newEvents = req.body.map(event => {
+      if (event.timeSlotId) event.timeSlotId = parseInt(event.timeSlotId, 10);
+      if (event.grade) event.grade = parseInt(event.grade, 10);
+      return event;
+    });
+
     if (!Array.isArray(newEvents)) {
       return res.status(400).json({ message: 'Request body must be an array of events.' });
     }
@@ -211,6 +220,9 @@ app.put('/api/events/:id', async (req, res) => {
         }
         
         const payload = { ...updatedEvent };
+        // Ensure numeric types before saving
+        if (payload.timeSlotId) payload.timeSlotId = parseInt(payload.timeSlotId, 10);
+        if (payload.grade) payload.grade = parseInt(payload.grade, 10);
 
         const result = await db.collection('schedules').updateOne(
             { _id: new ObjectId(eventId) },
