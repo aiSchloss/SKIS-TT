@@ -10,6 +10,7 @@
 </head>
 <body>
   <div id="root"></div>
+  <div id="pdf-container" style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}></div>
 
   <!-- React, Babel, and Material-UI via CDN -->
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -60,7 +61,7 @@
       },
     });
 
-    const API_URL = 'http://localhost:3001/api';
+    const API_URL = '/api';
 
     // ===================================================================================
     // LOGIN COMPONENT
@@ -171,7 +172,9 @@
 
                                                       const [isSendMailModalOpen, setIsSendMailModalOpen] = React.useState(false);
                                                       const [emailBody, setEmailBody] = React.useState('');
-                                                      const [emailRecipients, setEmailRecipients] = React.useState({});
+                                                      const [emailRecipients, setEmailRecipients] = React.useState([]);
+                                                      const [selectedRecipients, setSelectedRecipients] = React.useState({});
+                                                      const [sendingMail, setSendingMail] = React.useState(false);
 
                                                       const [selectedTeacher, setSelectedTeacher] = React.useState('');
                                                       const [selectedGrade, setSelectedGrade] = React.useState('');
@@ -192,19 +195,20 @@
                                                           .then(data => setEmailBody(data.text || ''))
                                                           .catch(err => console.error("Failed to fetch email text", err));
                                                         
-                                                        const initialRecipients = teachers.reduce((acc, teacher) => {
-                                                          acc[teacher.id] = false;
-                                                          return acc;
-                                                        }, { ALL_TEACHERS: false });
+                                                        const allTeachersOption = { id: 'all-teachers', name: 'All Teachers', email: 'a.bukhariev@krumbach.school' };
+                                                        
+                                                        const teachersWithEmail = teachers.filter(t => t.email && t.email.trim() !== '');
 
-                                                        grades.forEach(grade => {
-                                                          initialRecipients[`grade-${grade}`] = false;
-                                                        });
-
-                                                        setEmailRecipients(initialRecipients);
-
+                                                        setEmailRecipients([allTeachersOption, ...teachersWithEmail]);
+                                                        setSelectedRecipients({});
                                                         setIsSendMailModalOpen(true);
                                                         handleMenuClose();
+                                                      };
+                                                      
+                                                      const handleCloseMailModal = () => {
+                                                        setIsSendMailModalOpen(false);
+                                                        setSelectedRecipients({});
+                                                        // emailBody is intentionally not cleared
                                                       };
 
                                                       const dateInputRef = React.useRef(null);
@@ -332,7 +336,10 @@
                                                         return `${day}.${month}.${year}`;
                                                       };
                                                       const getEventsForCell = (grade, timeSlotId) => {
-                                                          const dayString = currentDay.toISOString().split('T')[0];
+                                                          const year = currentDay.getFullYear();
+                                                          const month = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                          const date = String(currentDay.getDate()).padStart(2, '0');
+                                                          const dayString = `${year}-${month}-${date}`;
                                                           let events = schedules.filter(event => event.day === dayString && event.grade === grade && event.timeSlotId === timeSlotId);
                                                           if (selectedTeacher) {
                                                             events = events.filter(event => event.teacherId === selectedTeacher);
@@ -397,7 +404,7 @@
                                                         const { name, value } = e.target; 
                                                         const updatedEvent = { ...newEvent, [name]: value }; 
                                                         if (name === 'subjectId') { 
-                                                          const selectedSubject = subjects.find(s => s.id === value); 
+                                                          const selectedSubject = subjects.find(s => s._id === value); 
                                                           if (selectedSubject) { updatedEvent.color = selectedSubject.color; } 
                                                         } 
                                                         setNewEvent(updatedEvent); 
@@ -406,11 +413,15 @@
                                                       const handleSubmit = () => { if (editingEvent) { handleUpdate(); } else { handleCreate(); } };
 
                                                       const handleCreate = () => {
-                                                        const payload = { ...newEvent, day: currentDay.toISOString().split('T')[0] };
+                                                        const year = currentDay.getFullYear();
+                                                        const month = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                        const date = String(currentDay.getDate()).padStart(2, '0');
+                                                        const dayString = `${year}-${month}-${date}`;
+                                                        const payload = { ...newEvent, day: dayString };
                                                         const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
                                                         if (conflictingEvent) {
-                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s.id === conflictingEvent.subjectId)?.name;
-                                                            const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
+                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                 
                                                             if (existingSubjectName !== newSubjectName) {
                                                                 alert('This room is already booked for this time slot with a different subject.');
@@ -426,8 +437,8 @@
                                                                 event.teacherId === payload.teacherId
                                                             );
                                                             if (teacherConflictEvent) {
-                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s.id === teacherConflictEvent.subjectId)?.name;
-                                                                const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
+                                                                const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                                 if (existingSubjectName !== newSubjectName) {
                                                                     alert('This teacher is already assigned to a different subject at this time.');
                                                                     return;
@@ -437,17 +448,28 @@
                                                         if (payload.customSubject) { payload.subjectId = null; }
                                                         if (payload.customTeacher) { payload.teacherId = null; }
                                                         if (payload.customRoom) { payload.roomId = null; }
-                                                        if (payload.color === '#ffffff' && payload.subjectId) { const selectedSubject = subjects.find(s => s.id === payload.subjectId); if (selectedSubject) { payload.color = selectedSubject.color; } }
+                                                        if (payload.color === '#ffffff' && payload.subjectId) { const selectedSubject = subjects.find(s => s._id === payload.subjectId); if (selectedSubject) { payload.color = selectedSubject.color; } }
                                                         fetch(`${API_URL}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-                                                        .then(res => res.json()).then(() => { fetchData(); handleCloseModal(); }).catch(err => console.error("Failed to save event", err));
+                                                        .then(res => {
+                                                            if (!res.ok) {
+                                                                return res.json().then(err => { throw new Error(err.message || 'An unexpected error occurred during creation.') });
+                                                            }
+                                                            return res.json();
+                                                        })
+                                                        .then(() => { fetchData(); handleCloseModal(); })
+                                                        .catch(err => {
+                                                            console.error("Failed to save event", err);
+                                                            alert(`Error: ${err.message}`);
+                                                            // Do not close modal here, let user correct input
+                                                        });
                                                       };
 
                                                       const handleUpdate = () => {
-                                                        const payload = { ...newEvent };
+                                                        const { _id, ...payload } = newEvent;
                                                         const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId && event.id !== editingEvent.id);
                                                         if (conflictingEvent) {
-                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s.id === conflictingEvent.subjectId)?.name;
-                                                            const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
+                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                 
                                                             if (existingSubjectName !== newSubjectName) {
                                                                 alert('This room is already booked for this time slot with a different subject.');
@@ -464,8 +486,8 @@
                                                                 event.id !== editingEvent.id
                                                             );
                                                             if (teacherConflictEvent) {
-                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s.id === teacherConflictEvent.subjectId)?.name;
-                                                                const newSubjectName = payload.customSubject || subjects.find(s => s.id === payload.subjectId)?.name;
+                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
+                                                                const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                                 if (existingSubjectName !== newSubjectName) {
                                                                     alert('This teacher is already assigned to a different subject at this time.');
                                                                     return;
@@ -476,13 +498,24 @@
                                                         if (payload.customSubject) { payload.subjectId = null; }
                                                         if (payload.customTeacher) { payload.teacherId = null; }
                                                         if (payload.customRoom) { payload.roomId = null; }
-                                                        fetch(`${API_URL}/events/${editingEvent.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-                                                        .then(res => res.json()).then(() => { fetchData(); handleCloseModal(); }).catch(err => console.error("Failed to update event", err));
+                                                        fetch(`${API_URL}/events/${editingEvent._id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                                                        .then(res => {
+                                                            if (!res.ok) {
+                                                                return res.json().then(err => { throw new Error(err.message || 'An unexpected error occurred during update.') });
+                                                            }
+                                                            return res.json();
+                                                        })
+                                                        .then(() => { fetchData(); handleCloseModal(); })
+                                                        .catch(err => {
+                                                            console.error("Failed to update event", err);
+                                                            alert(`Error: ${err.message}`);
+                                                            // Do not close modal here, let user correct input
+                                                        });
                                                       };
 
                                                       const handleDelete = () => {
                                                         if (editingEvent) {
-                                                          fetch(`${API_URL}/events/${editingEvent.id}`, { method: 'DELETE' })
+                                                          fetch(`${API_URL}/events/${editingEvent._id}`, { method: 'DELETE' })
                                                           .then(() => { fetchData(); handleCloseModal(); }).catch(err => console.error("Failed to delete event", err));
                                                         }
                                                       };
@@ -494,11 +527,166 @@
                                                       const getAllWeeks = () => { return Array.from({ length: 40 }, (_, i) => i + 1); };
                                                       const handleWeekChange = (e) => { const weekNumber = e.target.value; const schoolYearStartDate = new Date('2025-08-25T00:00:00Z'); const newDate = new Date(schoolYearStartDate.setDate(schoolYearStartDate.getDate() + (weekNumber - 1) * 7)); setCurrentDay(newDate); setInitialDay(newDate); };
                                                       
+                                                      const generatePDF = async (isForEmail = false, teacherName = null, grade = null) => {
+                                                        const { jsPDF } = window.jspdf;
+                                                        const pdf = new jsPDF('landscape', 'pt', 'a4');
+                                                        
+                                                        let tableId;
+                                                        if (teacherName) {
+                                                          tableId = '#teacher-schedule-table';
+                                                        } else if (grade) {
+                                                          tableId = '#grade-schedule-table';
+                                                        } else {
+                                                          tableId = '#schedule-table';
+                                                        }
+
+                                                        const table = document.querySelector(tableId);
+                                                        if (!table) {
+                                                          const errorMsg = `Could not find table: ${tableId}`;
+                                                          console.error(errorMsg);
+                                                          if (!isForEmail) alert(errorMsg);
+                                                          return Promise.reject(errorMsg);
+                                                        }
+
+                                                        const style = document.createElement('style');
+                                                        style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
+                                                        document.head.appendChild(style);
+                                                        table.classList.add('export-style');
+
+                                                        const canvas = await html2canvas(table, { scale: 1 });
+                                                        const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                                                        
+                                                        table.classList.remove('export-style');
+                                                        document.head.removeChild(style);
+
+                                                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                                                        const canvasWidth = canvas.width;
+                                                        const canvasHeight = canvas.height;
+                                                        const ratio = canvasWidth / canvasHeight;
+                                                        const imgWidth = pdfWidth - 80;
+                                                        const imgHeight = imgWidth / ratio;
+
+                                                        const monday = new Date(currentDay);
+                                                        while (monday.getDay() !== 1) {
+                                                          monday.setDate(monday.getDate() - 1);
+                                                        }
+                                                        const friday = new Date(monday);
+                                                        friday.setDate(monday.getDate() + 4);
+                                                        const dateRange = `(${formatDate(monday)} - ${formatDate(friday)})`;
+
+                                                        let dateText = `Schedule for Week ${getWeekNumber(currentDay)} ${dateRange}`;
+                                                        if (teacherName) {
+                                                          dateText = `Schedule for ${teacherName} - Week ${getWeekNumber(currentDay)} ${dateRange}`;
+                                                        } else if (grade) {
+                                                          dateText = `Schedule for Grade ${grade} - Week ${getWeekNumber(currentDay)} ${dateRange}`;
+                                                        }
+                                                        
+                                                        pdf.setFontSize(12);
+                                                        pdf.text(dateText, 40, 30);
+                                                        pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
+
+                                                        if (isForEmail) {
+                                                          return pdf.output('datauristring');
+                                                        } else {
+                                                          let fileName = `schedule-W_${getWeekNumber(currentDay)}.pdf`;
+                                                          if (teacherName) {
+                                                            fileName = `schedule-T_${teacherName.replace(/\s/g, '_')}-W_${getWeekNumber(currentDay)}.pdf`;
+                                                          } else if (grade) {
+                                                            fileName = `schedule-G_${grade}-W_${getWeekNumber(currentDay)}.pdf`;
+                                                          }
+                                                          pdf.save(fileName);
+                                                        }
+                                                      };
+
+                                                      const generateWeeklyPDF = async (isForEmail = false) => {
+                                                        const { jsPDF } = window.jspdf;
+                                                        const pdf = new jsPDF('landscape', 'pt', 'a4');
+                                                        const pdfContainer = document.getElementById('pdf-container');
+
+                                                        const monday = new Date(currentDay);
+                                                        while (monday.getDay() !== 1) {
+                                                          monday.setDate(monday.getDate() - 1);
+                                                        }
+                                                        monday.setHours(0, 0, 0, 0);
+
+                                                        const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+                                                        for (let i = 0; i < weekDays.length; i++) {
+                                                          const dayToRender = new Date(monday);
+                                                          dayToRender.setDate(monday.getDate() + i);
+
+                                                          const componentToRender = (
+                                                            <SingleDayView
+                                                              day={dayToRender}
+                                                              schedules={schedules}
+                                                              subjects={subjects}
+                                                              teachers={teachers}
+                                                              rooms={rooms}
+                                                              grades={grades}
+                                                              timeSlots={timeSlots}
+                                                              handleOpenModal={handleOpenModal}
+                                                              isEditor={isEditor}
+                                                              darkGrayCellStyle={darkGrayCellStyle}
+                                                            />
+                                                          );
+
+                                                          await new Promise(resolve => {
+                                                            ReactDOM.render(componentToRender, pdfContainer, async () => {
+                                                              const table = pdfContainer.querySelector('#single-day-table');
+                                                              if (!table) {
+                                                                console.error(`Could not find table for ${weekDays[i]}`);
+                                                                resolve();
+                                                                return;
+                                                              }
+
+                                                              const style = document.createElement('style');
+                                                              style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
+                                                              document.head.appendChild(style);
+                                                              table.classList.add('export-style');
+
+                                                              const canvas = await html2canvas(table, { scale: 1 });
+                                                              const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                                                              
+                                                              table.classList.remove('export-style');
+                                                              document.head.removeChild(style);
+
+                                                              if (i > 0) {
+                                                                pdf.addPage();
+                                                              }
+
+                                                              const pdfWidth = pdf.internal.pageSize.getWidth();
+                                                              const canvasWidth = canvas.width;
+                                                              const canvasHeight = canvas.height;
+                                                              const ratio = canvasWidth / canvasHeight;
+                                                              const imgWidth = pdfWidth - 80;
+                                                              const imgHeight = imgWidth / ratio;
+
+                                                              const dateText = `${weekDays[i]} - ${formatDate(dayToRender)}`;
+                                                              pdf.setFontSize(12);
+                                                              pdf.text(dateText, 40, 30);
+                                                              pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
+                                                              
+                                                              resolve();
+                                                            });
+                                                          });
+                                                        }
+
+                                                        ReactDOM.unmountComponentAtNode(pdfContainer);
+
+                                                        if (isForEmail) {
+                                                          return pdf.output('datauristring');
+                                                        } else {
+                                                          const fileName = `schedule-Weekly-W_${getWeekNumber(currentDay)}.pdf`;
+                                                          pdf.save(fileName);
+                                                        }
+                                                      };
+
                                                       // EXPORT HANDLERS
                                                       const handleOpenExportModal = () => { 
                                                         const currentWeek = getWeekNumber(currentDay); 
                                                         setExportWeek(currentWeek === 'Holidays' ? 1 : currentWeek); 
-                                                        setExportSelection(selectedTeacher || 'general');
+                                                        setExportSelection('general'); // Default to general
+                                                        setExportDays({ Monday: false, Tuesday: false, Wednesday: false, Thursday: false, Friday: false });
                                                         setExportModalOpen(true); 
                                                       };
                                                       const handleCloseExportModal = () => { setExportModalOpen(false); setExportWeek(''); setExportDays({ Monday: false, Tuesday: false, Wednesday: false, Thursday: false, Friday: false }); };
@@ -513,167 +701,50 @@
                                                         }
                                                       };
                                                       const handleExport = async () => {
-                                                        const { jsPDF } = window.jspdf;
-                                                        const pdf = new jsPDF('landscape', 'pt', 'a4');
-                                                        
                                                         setIsExporting(true);
+                                                        
+                                                        const allDaysSelected = Object.values(exportDays).every(day => day === true);
 
-                                                        if (selectedTeacher) {
-                                                            const tableNode = document.querySelector('#teacher-schedule-table');
-                                                            const style = document.createElement('style');
-                                                            style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                                                            document.head.appendChild(style);
-                                                            tableNode.classList.add('export-style');
-
-                                                            const teacherName = teachers.find(t => t.id === selectedTeacher)?.name.replace(/\s/g, '_') || 'teacher';
-                                                            const fileName = `schedule-T_${teacherName}-W_${getWeekNumber(currentDay)}.pdf`;
-                                                            
-                                                            const canvas = await html2canvas(tableNode);
-                                                            const imgData = canvas.toDataURL('image/png');
-                                                            const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                            const canvasWidth = canvas.width;
-                                                            const canvasHeight = canvas.height;
-                                                            const ratio = canvasWidth / canvasHeight;
-                                                            const imgWidth = pdfWidth - 80;
-                                                            const imgHeight = imgWidth / ratio;
-
-                                                            const dateText = `Schedule for ${teachers.find(t => t.id === selectedTeacher)?.name} - Week ${getWeekNumber(currentDay)}`;
-                                                            pdf.setFontSize(12);
-                                                            pdf.text(dateText, 40, 30);
-                                                            pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                            pdf.save(fileName);
-
-                                                            tableNode.classList.remove('export-style');
-                                                            document.head.removeChild(style);
-                                                        } else if (selectedGrade) {
-                                                            const tableNode = document.querySelector('#grade-schedule-table');
-                                                            const style = document.createElement('style');
-                                                            style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                                                            document.head.appendChild(style);
-                                                            tableNode.classList.add('export-style');
-
-                                                            const fileName = `schedule-G_${selectedGrade}-W_${getWeekNumber(currentDay)}.pdf`;
-                                                            
-                                                            const canvas = await html2canvas(tableNode);
-                                                            const imgData = canvas.toDataURL('image/png');
-                                                            const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                            const canvasWidth = canvas.width;
-                                                            const canvasHeight = canvas.height;
-                                                            const ratio = canvasWidth / canvasHeight;
-                                                            const imgWidth = pdfWidth - 80;
-                                                            const imgHeight = imgWidth / ratio;
-
-                                                            const dateText = `Schedule for Grade ${selectedGrade} - Week ${getWeekNumber(currentDay)}`;
-                                                            pdf.setFontSize(12);
-                                                            pdf.text(dateText, 40, 30);
-                                                            pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                            pdf.save(fileName);
-
-                                                            tableNode.classList.remove('export-style');
-                                                            document.head.removeChild(style);
+                                                        if (exportSelection === 'general' && allDaysSelected) {
+                                                          // New weekly export logic
+                                                          await generateWeeklyPDF(false);
                                                         } else {
-                                                            const tableNode = document.querySelector('#schedule-table');
-                                                            const style = document.createElement('style');
-                                                            style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                                                            document.head.appendChild(style);
-                                                            tableNode.classList.add('export-style');
-                                                    
-                                                            let pageCount = 0;
-                                                    
-                                                            if (startWeek && endWeek) { // Range export logic
-                                                                const parsedStartWeek = parseInt(startWeek);
-                                                                const parsedEndWeek = parseInt(endWeek);
-                                                    
-                                                                if (isNaN(parsedStartWeek) || isNaN(parsedEndWeek) || parsedStartWeek <= 0 || parsedEndWeek <= 0 || parsedStartWeek > parsedEndWeek) {
-                                                                    alert('Please enter a valid week range (e.g., 1 to 20).');
-                                                                    setIsExporting(false);
-                                                                    tableNode.classList.remove('export-style');
-                                                                    document.head.removeChild(style);
-                                                                    return;
-                                                                }
-                                                    
-                                                                const schoolYearStartDate = new Date('2025-08-25T00:00:00Z');
-                                                                const schoolYearEndDate = new Date('2026-06-20T00:00:00Z');
-                                                                let currentDateIter = new Date(schoolYearStartDate);
-                                                    
-                                                                while (currentDateIter <= schoolYearEndDate) {
-                                                                    const weekOfCurrentDate = getWeekNumber(currentDateIter);
-                                                                    if (weekOfCurrentDate >= parsedStartWeek && weekOfCurrentDate <= parsedEndWeek) {
-                                                                        const dayOfWeek = currentDateIter.getDay();
-                                                                        if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Is a weekday
-                                                                            setCurrentDay(new Date(currentDateIter));
-                                                                            await new Promise(resolve => setTimeout(resolve, 1500));
-                                                    
-                                                                            const canvas = await html2canvas(tableNode);
-                                                                            const imgData = canvas.toDataURL('image/png');
-                                                                            const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                                            const canvasWidth = canvas.width;
-                                                                            const canvasHeight = canvas.height;
-                                                                            const ratio = canvasWidth / canvasHeight;
-                                                                            const imgWidth = pdfWidth - 80;
-                                                                            const imgHeight = imgWidth / ratio;
-                                                    
-                                                                            if (pageCount > 0) { pdf.addPage(); }
-                                                                            pageCount++;
-                                                                            
-                                                                            const dateText = `${dayFormatter.format(currentDateIter)} - ${formatDate(currentDateIter)}`;
-                                                                            pdf.setFontSize(12);
-                                                                            pdf.text(dateText, 40, 30);
-                                                                            pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                                        }
-                                                                    }
-                                                                    currentDateIter.setDate(currentDateIter.getDate() + 1);
-                                                                }
-                                                                pdf.save(`schedule-weeks-${parsedStartWeek}-${parsedEndWeek}.pdf`);
-                                                    
-                                                            } else { // 'days' mode (existing logic)
-                                                                const selectedDays = Object.entries(exportDays).filter(([, isSelected]) => isSelected).map(([day]) => day);
-                                                                if (selectedDays.length === 0) {
-                                                                    alert('Please select at least one day to export.');
-                                                                    setIsExporting(false);
-                                                                    tableNode.classList.remove('export-style');
-                                                                    document.head.removeChild(style);
-                                                                    return;
-                                                                }
-                                                                
-                                                                const sourceDay = new Date(currentDay);
-                                                                const sourceDayOfWeek = sourceDay.getDay();
-                                                                const mondayOfExportWeek = new Date(sourceDay);
-                                                                mondayOfExportWeek.setDate(sourceDay.getDate() - sourceDayOfWeek + (sourceDayOfWeek === 0 ? -6 : 1));
-                                                    
-                                                                for (let i = 0; i < selectedDays.length; i++) {
-                                                                    const dayName = selectedDays[i];
-                                                                    const dayIndex = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].indexOf(dayName);
-                                                                    const targetDay = new Date(mondayOfExportWeek);
-                                                                    targetDay.setDate(mondayOfExportWeek.getDate() + dayIndex);
-                                                    
-                                                                    setCurrentDay(targetDay);
-                                                                    await new Promise(resolve => setTimeout(resolve, 1500));
-                                                    
-                                                                    const canvas = await html2canvas(tableNode);
-                                                                    const imgData = canvas.toDataURL('image/png');
-                                                                    const pdfWidth = pdf.internal.pageSize.getWidth();
-                                                                    const canvasWidth = canvas.width;
-                                                                    const canvasHeight = canvas.height;
-                                                                    const ratio = canvasWidth / canvasHeight;
-                                                                    const imgWidth = pdfWidth - 80;
-                                                                    const imgHeight = imgWidth / ratio;
-                                                    
-                                                                    if (i > 0) { pdf.addPage(); }
-                                                                    const dateText = `${dayFormatter.format(targetDay)} - ${formatDate(targetDay)}`;
-                                                                    pdf.setFontSize(12);
-                                                                    pdf.text(dateText, 40, 30);
-                                                                    pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-                                                                }
-                                                                pdf.save(`schedule-week-${getWeekNumber(currentDay)}.pdf`);
-                                                            }
-                                                            tableNode.classList.remove('export-style');
-                                                            document.head.removeChild(style);
+                                                          // Existing logic for single day / teacher / grade
+                                                          let teacherName = null;
+                                                          let grade = null;
+
+                                                          if (exportSelection.startsWith('grade-')) {
+                                                            grade = parseInt(exportSelection.split('-')[1]);
+                                                          } else if (exportSelection !== 'general') {
+                                                            const teacher = teachers.find(t => t._id === exportSelection);
+                                                            if (teacher) teacherName = teacher.name;
+                                                          }
+                                                          
+                                                          // This requires the correct view to be rendered
+                                                          // For teacher/grade, we need to render them off-screen
+                                                          const pdfContainer = document.getElementById('pdf-container');
+                                                          let componentToRender;
+                                                          if (teacherName) {
+                                                            const teacher = teachers.find(t => t.name === teacherName);
+                                                            componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={() => {}} isEditor={isEditor} />;
+                                                          } else if (grade) {
+                                                            componentToRender = <GradeScheduleView grade={grade} schedules={schedules} subjects={subjects} teachers={teachers} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} handleOpenModal={() => {}} isEditor={isEditor} />;
+                                                          } else {
+                                                            // General single day export
+                                                            componentToRender = <SingleDayView day={currentDay} schedules={schedules} subjects={subjects} teachers={teachers} rooms={rooms} grades={grades} timeSlots={timeSlots} handleOpenModal={() => {}} isEditor={isEditor} darkGrayCellStyle={darkGrayCellStyle} />;
+                                                          }
+
+                                                          await new Promise(resolve => {
+                                                            ReactDOM.render(componentToRender, pdfContainer, async () => {
+                                                              await generatePDF(false, teacherName, grade);
+                                                              ReactDOM.unmountComponentAtNode(pdfContainer);
+                                                              resolve();
+                                                            });
+                                                          });
                                                         }
-                                                
+                                                        
                                                         setIsExporting(false);
                                                         handleCloseExportModal();
-                                                        setCurrentDay(initialDay);
                                                       };
 
                                                       // COPY/PASTE HANDLERS
@@ -681,8 +752,17 @@
                                                       const handleCloseCopyModal = () => { setIsCopyModalOpen(false); setCopyTargetDate(null); };
                                                       const handlePasteDay = async () => {
                                                         if (!copyTargetDate) { alert('Please select a target date.'); return; }
-                                                        const sourceDayString = currentDay.toISOString().split('T')[0]; 
-                                                        const targetDayString = copyTargetDate.toISOString().split('T')[0];
+                                                        
+                                                        const sourceYear = currentDay.getFullYear();
+                                                        const sourceMonth = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                        const sourceDate = String(currentDay.getDate()).padStart(2, '0');
+                                                        const sourceDayString = `${sourceYear}-${sourceMonth}-${sourceDate}`;
+
+                                                        const targetYear = copyTargetDate.getFullYear();
+                                                        const targetMonth = String(copyTargetDate.getMonth() + 1).padStart(2, '0');
+                                                        const targetDate = String(copyTargetDate.getDate()).padStart(2, '0');
+                                                        const targetDayString = `${targetYear}-${targetMonth}-${targetDate}`;
+                                                        
                                                         const eventsToCopy = schedules.filter(event => event.day === sourceDayString);
                                                         
                                                         if (eventsToCopy.length === 0) { 
@@ -705,7 +785,7 @@
                                                           }
 
                                                           // Then, create the new events
-                                                          const newEvents = eventsToCopy.map(({ id, ...event }) => ({ ...event, day: targetDayString }));
+                                                          const newEvents = eventsToCopy.map(({ _id, ...event }) => ({ ...event, day: targetDayString }));
                                                           const createResponse = await fetch(`${API_URL}/events/batch`, { 
                                                             method: 'POST', 
                                                             headers: { 'Content-Type': 'application/json' }, 
@@ -715,8 +795,7 @@
                                                           if (!createResponse.ok) { 
                                                             throw new Error('Failed to paste schedule.'); 
                                                           }
-
-                                                          await createResponse.json(); 
+                                                          
                                                           fetchData(); 
                                                           alert(`Successfully replaced schedule on ${formatDate(copyTargetDate)} with schedule from ${formatDate(currentDay)}.`);
                                                           handleCloseCopyModal(); 
@@ -726,6 +805,33 @@
                                                           alert(`An error occurred while pasting the schedule: ${err.message}`); 
                                                         }
                                                       };
+                                                      
+                                                      const handleCleanDay = async () => {
+                                                        if (!isEditor) return;
+                                                        const year = currentDay.getFullYear();
+                                                        const month = String(currentDay.getMonth() + 1).padStart(2, '0');
+                                                        const date = String(currentDay.getDate()).padStart(2, '0');
+                                                        const dayString = `${year}-${month}-${date}`;
+                                                        if (confirm(`Are you sure you want to delete all events for ${formatDate(currentDay)}? This cannot be undone.`)) {
+                                                          try {
+                                                            const response = await fetch(`${API_URL}/schedules/by-day`, {
+                                                              method: 'DELETE',
+                                                              headers: { 'Content-Type': 'application/json' },
+                                                              body: JSON.stringify({ day: dayString })
+                                                            });
+                                                            if (!response.ok) {
+                                                              const errorData = await response.json();
+                                                              throw new Error(errorData.message || 'Failed to clear the day.');
+                                                            }
+                                                            fetchData();
+                                                            alert(`Successfully cleared all events for ${formatDate(currentDay)}.`);
+                                                          } catch (err) {
+                                                            console.error("Failed to clean day:", err);
+                                                            alert(`An error occurred while cleaning the day: ${err.message}`);
+                                                          }
+                                                        }
+                                                      };
+
                                                       const handleOpenCopyWeekModal = () => { if (isEditor) setIsCopyWeekModalOpen(true); };
                                                       const handleCloseCopyWeekModal = () => { setIsCopyWeekModalOpen(false); setCopyWeekTargetDate(null); };
                                                       const handlePasteWeek = async () => {
@@ -747,15 +853,22 @@
                                                                           for (let i = 0; i < 5; i++) { // Loop from Monday to Friday
                                                                               const sourceDate = new Date(mondayOfSourceWeek);
                                                                               sourceDate.setDate(mondayOfSourceWeek.getDate() + i);
-                                                                              const sourceDateString = sourceDate.toISOString().split('T')[0];
+                                                                              const sourceYear = sourceDate.getFullYear();
+                                                                              const sourceMonth = String(sourceDate.getMonth() + 1).padStart(2, '0');
+                                                                              const sourceDay = String(sourceDate.getDate()).padStart(2, '0');
+                                                                              const sourceDateString = `${sourceYear}-${sourceMonth}-${sourceDay}`;
                                                                   
                                                                               const eventsForSourceDay = schedules.filter(event => event.day === sourceDateString);
                                                                               
                                                                               if (eventsForSourceDay.length > 0) {
                                                                                   const targetDate = new Date(mondayOfTargetWeek);
                                                                                   targetDate.setDate(mondayOfTargetWeek.getDate() + i);
-                                                                                  const targetDateString = targetDate.toISOString().split('T')[0];
-                                                                                  const newEventsForTargetDay = eventsForSourceDay.map(({ id, ...event }) => ({
+                                                                                  const targetYear = targetDate.getFullYear();
+                                                                                  const targetMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
+                                                                                  const targetDay = String(targetDate.getDate()).padStart(2, '0');
+                                                                                  const targetDateString = `${targetYear}-${targetMonth}-${targetDay}`;
+
+                                                                                  const newEventsForTargetDay = eventsForSourceDay.map(({ _id, ...event }) => ({
                                                                                       ...event,
                                                                                       day: targetDateString
                                                                                   }));
@@ -775,7 +888,10 @@
                                                                               for (let i = 0; i < 5; i++) {
                                                                                   const targetDate = new Date(mondayOfTargetWeek);
                                                                                   targetDate.setDate(mondayOfTargetWeek.getDate() + i);
-                                                                                  const targetDateString = targetDate.toISOString().split('T')[0];
+                                                                                  const targetYear = targetDate.getFullYear();
+                                                                                  const targetMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
+                                                                                  const targetDay = String(targetDate.getDate()).padStart(2, '0');
+                                                                                  const targetDateString = `${targetYear}-${targetMonth}-${targetDay}`;
                                                                                   deletePromises.push(
                                                                                       fetch(`${API_URL}/schedules/by-day`, {
                                                                                           method: 'DELETE',
@@ -801,7 +917,6 @@
                                                                               });
                                                                               if (!createResponse.ok) { throw new Error('Failed to paste week schedule.'); }
                                                                               
-                                                                              await createResponse.json();
                                                                               fetchData();
                                                                               alert(`Successfully replaced schedule in the week of ${formatDate(mondayOfTargetWeek)} with schedule from the week of ${formatDate(mondayOfSourceWeek)}.`);
                                                                               handleCloseCopyWeekModal();
@@ -814,7 +929,7 @@
 
                                                       // SUBJECT HANDLERS
                                                       const handleOpenUsageModal = (subjectId) => {
-                                                        const subject = subjects.find(s => s.id === subjectId);
+                                                        const subject = subjects.find(s => s._id === subjectId);
                                                         if (!subject) return;
                                                     
                                                         const usageDates = schedules
@@ -889,7 +1004,7 @@
                                                         const editingIds = new Set(editingSubjects.map(s => s.id));
                                                         originalSubjects.forEach(original => {
                                                           if (original.id && !editingIds.has(original.id)) {
-                                                            changes.push(fetch(`${API_URL}/subjects/${original.id}`, {
+                                                            changes.push(fetch(`${API_URL}/subjects/${original._id}`, {
                                                               method: 'DELETE'
                                                             }));
                                                           }
@@ -897,7 +1012,7 @@
                                                     
                                                         // Identify new and updated subjects
                                                         editingSubjects.forEach((subject, index) => {
-                                                          if (!subject.id) {
+                                                          if (!subject._id) {
                                                             // New subject
                                                             changes.push(fetch(`${API_URL}/subjects`, {
                                                               method: 'POST',
@@ -906,9 +1021,9 @@
                                                             }));
                                                           } else {
                                                             // Existing subject, check for changes
-                                                            const original = originalSubjects.find(s => s.id === subject.id);
+                                                            const original = originalSubjects.find(s => s._id === subject._id);
                                                             if (original && (original.name !== subject.name || original.color !== subject.color || original.order !== index)) {
-                                                              changes.push(fetch(`${API_URL}/subjects/${subject.id}`, {
+                                                              changes.push(fetch(`${API_URL}/subjects/${subject._id}`, {
                                                                 method: 'PUT',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ name: subject.name, color: subject.color, order: index })
@@ -958,21 +1073,21 @@
                                                         const editingIds = new Set(editingTeachers.map(t => t.id));
                                                         originalTeachers.forEach(original => {
                                                           if (original.id && !editingIds.has(original.id)) {
-                                                            changes.push(fetch(`${API_URL}/teachers/${original.id}`, { method: 'DELETE' }));
+                                                            changes.push(fetch(`${API_URL}/teachers/${original._id}`, { method: 'DELETE' }));
                                                           }
                                                         });
 
                                                         editingTeachers.forEach((teacher, index) => {
-                                                          if (!teacher.id) { // New teacher
+                                                          if (!teacher._id) { // New teacher
                                                             changes.push(fetch(`${API_URL}/teachers`, {
                                                               method: 'POST',
                                                               headers: { 'Content-Type': 'application/json' },
                                                               body: JSON.stringify({ name: teacher.name, order: index, email: teacher.email })
                                                             }));
                                                           } else { // Existing teacher
-                                                            const original = originalTeachers.find(t => t.id === teacher.id);
+                                                            const original = originalTeachers.find(t => t._id === teacher._id);
                                                             if (original && (original.name !== teacher.name || original.order !== index || original.email !== teacher.email)) {
-                                                              changes.push(fetch(`${API_URL}/teachers/${teacher.id}`, {
+                                                              changes.push(fetch(`${API_URL}/teachers/${teacher._id}`, {
                                                                 method: 'PUT',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ name: teacher.name, order: index, email: teacher.email })
@@ -1005,7 +1120,7 @@
                                                       };
 
                                                       const handleOpenTeacherUsageModal = (teacherId) => {
-                                                        const teacher = teachers.find(t => t.id === teacherId);
+                                                        const teacher = teachers.find(t => t._id === teacherId);
                                                         if (!teacher) return;
 
                                                         const usageDates = schedules
@@ -1063,21 +1178,21 @@
                                                         const editingIds = new Set(editingRooms.map(r => r.id));
                                                         originalRooms.forEach(original => {
                                                           if (original.id && !editingIds.has(original.id)) {
-                                                            changes.push(fetch(`${API_URL}/rooms/${original.id}`, { method: 'DELETE' }));
+                                                            changes.push(fetch(`${API_URL}/rooms/${original._id}`, { method: 'DELETE' }));
                                                           }
                                                         });
 
                                                         editingRooms.forEach((room, index) => {
-                                                          if (!room.id) { // New room
+                                                          if (!room._id) { // New room
                                                             changes.push(fetch(`${API_URL}/rooms`, {
                                                               method: 'POST',
                                                               headers: { 'Content-Type': 'application/json' },
                                                               body: JSON.stringify({ name: room.name, order: index })
                                                             }));
                                                           } else { // Existing room
-                                                            const original = originalRooms.find(r => r.id === room.id);
+                                                            const original = originalRooms.find(r => r._id === room._id);
                                                             if (original && (original.name !== room.name || original.order !== index)) {
-                                                              changes.push(fetch(`${API_URL}/rooms/${room.id}`, {
+                                                              changes.push(fetch(`${API_URL}/rooms/${room._id}`, {
                                                                 method: 'PUT',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ name: room.name, order: index })
@@ -1110,7 +1225,7 @@
                                                       };
 
                                                       const handleOpenRoomUsageModal = (roomId) => {
-                                                        const room = rooms.find(r => r.id === roomId);
+                                                        const room = rooms.find(r => r._id === roomId);
                                                         if (!room) return;
 
                                                         const usageDates = schedules
@@ -1148,8 +1263,171 @@
                                                           alert(`An error occurred: ${error.message}`);
                                                         }
                                                       };
+                                                      
+                                                      const handleSendMail = async () => {
+                                                        const recipients = Object.entries(selectedRecipients)
+                                                          .filter(([, isSelected]) => isSelected)
+                                                          .map(([id]) => emailRecipients.find(r => r.id === id));
+
+                                                        if (!emailBody.trim()) {
+                                                          alert('Email body cannot be empty.');
+                                                          return;
+                                                        }
+                                                        if (recipients.length === 0) {
+                                                          alert('Please select at least one recipient.');
+                                                          return;
+                                                        }
+
+                                                        setSendingMail(true);
+
+                                                        const monday = new Date(currentDay);
+                                                        while (monday.getDay() !== 1) {
+                                                          monday.setDate(monday.getDate() - 1);
+                                                        }
+                                                        monday.setHours(0, 0, 0, 0);
+
+                                                        const friday = new Date(monday);
+                                                        friday.setDate(monday.getDate() + 4);
+                                                        friday.setHours(23, 59, 59, 999);
+
+                                                        const dateRangeFormatted = `(${formatDate(monday)}-${formatDate(friday)})`;
+                                                        const weekNumber = getWeekNumber(currentDay);
+
+                                                        const isSendingToAll = recipients.some(r => r.id === 'all-teachers');
+
+                                                        if (isSendingToAll) {
+                                                          // Special case: Send one email with the weekly general schedule
+                                                          const allTeachersRecipient = recipients.find(r => r.id === 'all-teachers');
+                                                          try {
+                                                            const pdfDataUri = await generateWeeklyPDF(true);
+                                                            const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
+                                                            const fileName = `SKIS_Week_${weekNumber}_Schedule_${dateRangeFormatted}.pdf`;
+
+                                                            const response = await fetch(`${API_URL}/send-schedule`, {
+                                                              method: 'POST',
+                                                              headers: { 'Content-Type': 'application/json' },
+                                                              body: JSON.stringify({ emailBody, recipient: allTeachersRecipient, subject, fileName, pdfDataUri })
+                                                            });
+                                                            if (!response.ok) throw new Error((await response.json()).message || 'Failed to send email to All Teachers');
+                                                            
+                                                          } catch (err) {
+                                                            console.error(`Error sending weekly schedule to All Teachers:`, err);
+                                                            alert(`Error sending weekly schedule to All Teachers: ${err.message}`);
+                                                          }
+                                                        } else {
+                                                          // Original logic: Send personal schedules to individual teachers
+                                                          for (const recipient of recipients) {
+                                                            try {
+                                                              const pdfContainer = document.getElementById('pdf-container');
+                                                              const teacher = teachers.find(t => t._id === recipient.id);
+                                                              if (!teacher) continue; // Skip if not a valid teacher
+
+                                                              const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={() => {}} isEditor={isEditor} />;
+                                                              
+                                                              const pdfDataUri = await new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generatePDF(true, teacher.name, null))));
+                                                              ReactDOM.unmountComponentAtNode(pdfContainer);
+
+                                                              if (!pdfDataUri) throw new Error('PDF generation failed.');
+
+                                                              const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
+                                                              const fileName = `SKIS_Week_${weekNumber}_${recipient.name.replace(/\s/g, '_')}_Schedule_${dateRangeFormatted}.pdf`;
+
+                                                              const response = await fetch(`${API_URL}/send-schedule`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ emailBody, recipient, subject, fileName, pdfDataUri })
+                                                              });
+                                                              if (!response.ok) throw new Error((await response.json()).message || 'Failed to send email');
+
+                                                            } catch (err) {
+                                                              console.error(`Error sending schedule to ${recipient.name}:`, err);
+                                                              alert(`Error sending schedule to ${recipient.name}: ${err.message}`);
+                                                            }
+                                                          }
+                                                        }
+                                                        
+                                                        setSendingMail(false);
+                                                        alert('Finished sending emails.');
+                                                        handleCloseMailModal();
+                                                      };
 
                                                       // RENDER
+
+      // ===================================================================================
+      // SINGLE DAY VIEW COMPONENT (for PDF generation)
+      // ===================================================================================
+      const SingleDayView = ({ day, schedules, subjects, teachers, rooms, grades, timeSlots, handleOpenModal, isEditor, darkGrayCellStyle }) => {
+        const getEventsForDay = (grade, timeSlotId) => {
+          const year = day.getFullYear();
+          const month = String(day.getMonth() + 1).padStart(2, '0');
+          const date = String(day.getDate()).padStart(2, '0');
+          const dayString = `${year}-${month}-${date}`;
+          return schedules.filter(event => event.day === dayString && event.grade === grade && event.timeSlotId === timeSlotId);
+        };
+
+        return (
+          <Box id="single-day-table">
+            <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed', minWidth: '1800px' }}>
+              <thead>
+                <tr>
+                  <th style={{...darkGrayCellStyle, width: '120px', whiteSpace: 'nowrap'}}>Time</th>
+                  {grades.map(grade => <th key={grade} style={{...darkGrayCellStyle, textAlign: 'center', width: '280px'}}>{`Grade ${grade}`}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {timeSlots.map(timeSlot => {
+                  const isSpecialRow = ['snack', 'lunch', 10].includes(timeSlot.id);
+                  const rowStyle = { backgroundColor: isSpecialRow ? '#e0e0e0' : 'inherit' };
+                  return (
+                    <tr key={timeSlot.id}>
+                      <td style={{...darkGrayCellStyle, ...rowStyle, width: '120px', whiteSpace: 'nowrap'}}>{timeSlot.time}</td>
+                      {grades.map(grade => {
+                        const events = getEventsForDay(grade, timeSlot.id);
+                        let cellContent;
+                        if (events.length > 1) {
+                          cellContent = (
+                            <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
+                              {events.map(event => {
+                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
+                                const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
+                                return (
+                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                    <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
+                                    <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
+                                  </Box>
+                                );
+                              })}
+                            </Box>
+                          );
+                        } else if (events.length === 1) {
+                          const event = events[0];
+                          const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                          const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                          const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
+                          const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
+                          cellContent = (
+                            <Box key={event._id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                              <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
+                              <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
+                            </Box>
+                          );
+                        } else {
+                          if (timeSlot.id === 'snack') { cellContent = <Typography variant="body1" sx={{fontWeight: 'bold', color: 'black', textAlign: 'center'}}>Snack</Typography>; }
+                          else if (timeSlot.id === 'lunch') { cellContent = <Typography variant="body1" sx={{fontWeight: 'bold', color: 'black', textAlign: 'center'}}>Lunchbreak</Typography>; }
+                          else if (timeSlot.id === 10) { cellContent = <Typography variant="body1" sx={{fontWeight: 'bold', color: 'black', textAlign: 'center'}}>Homework Time</Typography>; }
+                        }
+                        return (<td key={`${grade}-${timeSlot.id}`} style={{...darkGrayCellStyle, ...rowStyle}}>{cellContent}</td>);
+                      })}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </Box>
+        );
+      };
 
       // ===================================================================================
       // TEACHER SCHEDULE VIEW COMPONENT
@@ -1180,7 +1458,7 @@
         });
 
         const teacherSchedules = schedules.filter(event => 
-          event.teacherId === teacher.id && weekDateStrings.includes(event.day)
+          event.teacherId === teacher._id && weekDateStrings.includes(event.day)
         );
 
         return (
@@ -1211,11 +1489,11 @@
                           cellContent = (
                             <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
                               {events.map(event => {
-                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
-                                  <Box key={event.id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
                                     <Typography variant="body1"><b>{subject ? `${subject.name} (Grade ${event.grade})` : `Event (Grade ${event.grade})`}</b></Typography>
                                     <Typography variant="body2">{room ? room.name : 'N/A'}</Typography>
                                   </Box>
@@ -1304,12 +1582,12 @@
                           cellContent = (
                             <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
                               {events.map(event => {
-                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
-                                  <Box key={event.id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
                                     <Typography variant="body1"><b>{subject ? `${subject.name} (${teacher ? teacher.name : 'N/A'})` : `Event (${teacher ? teacher.name : 'N/A'})`}</b></Typography>
                                     <Typography variant="body2">{room ? room.name : 'N/A'}</Typography>
                                   </Box>
@@ -1372,6 +1650,7 @@
                     }}
                   >
                     <MenuItem onClick={() => { handleOpenCopyModal(); handleMenuClose(); }}>Copy Day</MenuItem>
+                    <MenuItem onClick={() => { handleCleanDay(); handleMenuClose(); }}>Clean Day</MenuItem>
                     <MenuItem onClick={() => { handleOpenCopyWeekModal(); handleMenuClose(); }}>Copy Week</MenuItem>
                     <MenuItem onClick={() => { handleOpenSubjectModal(); handleMenuClose(); }}>Edit Subjects</MenuItem>
                     <MenuItem onClick={() => { handleOpenTeacherModal(); handleMenuClose(); }}>Edit Teachers</MenuItem>
@@ -1414,7 +1693,7 @@
                           <em>All Teachers</em>
                         </MenuItem>
                         {teachers.map(teacher => (
-                          teacher && <MenuItem key={teacher.id} value={teacher.id}>{teacher.name}</MenuItem>
+                          teacher && <MenuItem key={teacher._id} value={teacher._id}>{teacher.name}</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -1472,7 +1751,7 @@
             )}
             {selectedTeacher ? (
               <TeacherScheduleView 
-                teacher={teachers.find(t => t && t.id === selectedTeacher)}
+                teacher={teachers.find(t => t && t._id === selectedTeacher)}
                 schedules={schedules}
                 subjects={subjects}
                 timeSlots={timeSlots}
@@ -1518,12 +1797,12 @@
                                   cellContent = (
                                       <Box sx={{ display: 'flex', gap: '4px', width: '100%', height: '100%' }}>
                                           {events.map(event => {
-                                              const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                              const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                                              const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                              const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                              const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                              const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                               const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                               return (
-                                                  <Box key={event.id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
                                                       <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
                                                       <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
                                                   </Box>
@@ -1534,12 +1813,12 @@
                               } else if (events.length === 1) {
                                   // Original logic for a single event
                                   const event = events[0];
-                                  const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s.id === event.subjectId);
-                                  const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t.id === event.teacherId);
-                                  const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r.id === event.roomId);
+                                  const subject = event.customSubject ? { name: event.customSubject } : subjects.find(s => s._id === event.subjectId);
+                                  const teacher = event.customTeacher ? { name: event.customTeacher } : teachers.find(t => t._id === event.teacherId);
+                                  const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                   const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                   cellContent = (
-                                      <Box key={event.id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                      <Box key={event._id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
                                           <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
                                           <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
                                       </Box>
@@ -1568,11 +1847,11 @@
                     <Grid container spacing={2}>
                         <Grid item xs={6}><FormControl fullWidth><InputLabel>Grade</InputLabel><Select name="grade" value={newEvent.grade} label="Grade" onChange={handleFormChange}>{grades.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><FormControl fullWidth><InputLabel>Time Slot</InputLabel><Select name="timeSlotId" value={newEvent.timeSlotId} label="Time Slot" onChange={handleFormChange}>{timeSlots.filter(t=>typeof t.id === 'number').map(t => <MenuItem key={t.id} value={t.id}>{t.time}</MenuItem>)}</Select></FormControl></Grid>
-                        <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={12}><TextField label="Or Custom Event Name" name="customSubject" value={newEvent.customSubject} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><TextField label="Or Custom Teacher" name="customTeacher" value={newEvent.customTeacher} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><TextField label="Or Custom Room" name="customRoom" value={newEvent.customRoom} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
                         <Grid item xs={12}><TextField label="Custom Color" type="color" name="color" value={newEvent.color} onChange={handleFormChange} fullWidth/></Grid>
                     </Grid>
@@ -1593,21 +1872,11 @@
                         <Select
                             value={exportSelection}
                             label="Export Type"
-                            onChange={(e) => {
-                                const value = e.target.value;
-                                setExportSelection(value);
-                                if (value.startsWith('grade-')) {
-                                    setSelectedGrade(parseInt(value.split('-')[1]));
-                                    setSelectedTeacher('');
-                                } else {
-                                    setSelectedTeacher(value === 'general' ? '' : value);
-                                    setSelectedGrade('');
-                                }
-                            }}
+                            onChange={(e) => setExportSelection(e.target.value)}
                         >
                             <MenuItem value="general">General Schedule</MenuItem>
                             {teachers.map(teacher => (
-                                <MenuItem key={teacher.id} value={teacher.id}>{teacher.name}</MenuItem>
+                                <MenuItem key={teacher._id} value={teacher._id}>{teacher.name}</MenuItem>
                             ))}
                             {grades.map(grade => (
                                 <MenuItem key={`grade-${grade}`} value={`grade-${grade}`}>{`Grade ${grade}`}</MenuItem>
@@ -1621,40 +1890,6 @@
                         </Box>
                     ) : (
                         <>
-                            <FormControl fullWidth sx={{mb: 2}}>
-                                <InputLabel>Week</InputLabel>
-                                <Select
-                                    value={exportWeek}
-                                    label="Week"
-                                    onChange={handleExportWeekChange}
-                                    disabled
-                                >
-                                    {getAllWeeks().map(week => (
-                                        <MenuItem key={week} value={week}>{week}</MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                            <Typography variant="body2" sx={{mb: 1, color: exportSelection !== 'general' ? 'text.disabled' : 'text.primary'}}>Optional: To export a range, enter start and end weeks.</Typography>
-                            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                                <TextField
-                                    label="Start Week"
-                                    type="number"
-                                    value={startWeek}
-                                    onChange={(e) => setStartWeek(e.target.value)}
-                                    fullWidth
-                                    InputLabelProps={{ shrink: true }}
-                                    disabled={exportSelection !== 'general'}
-                                />
-                                <TextField
-                                    label="End Week"
-                                    type="number"
-                                    value={endWeek}
-                                    onChange={(e) => setEndWeek(e.target.value)}
-                                    fullWidth
-                                    InputLabelProps={{ shrink: true }}
-                                    disabled={exportSelection !== 'general'}
-                                />
-                            </Box>
                             <FormControl component="fieldset" variant="standard" sx={{mb: 2, width: '100%'}} disabled={exportSelection !== 'general'}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Typography component="legend" sx={{color: exportSelection !== 'general' ? 'text.disabled' : 'text.primary'}}>Select Days to Export:</Typography>
@@ -1738,7 +1973,7 @@
                                                 <Box sx={{ mb: 3 }}>
                                                     {editingSubjects.map((subject, index) => (
                                                         <Box 
-                                                            key={subject.id || `new-${index}`} 
+                                                            key={subject._id || `new-${index}`} 
                                                             sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, cursor: 'move', p: 1, border: '1px dashed grey' }}
                                                             draggable={true}
                                                             onDragStart={(e) => handleDragStart(e, index)}
@@ -1773,13 +2008,13 @@
                                                                     updatedSubjects.splice(index, 1);
                                                                     setEditingSubjects(updatedSubjects);
                                                                 }}
-                                                                disabled={schedules.some(s => s.subjectId === subject.id)}
-                                                                title={schedules.some(s => s.subjectId === subject.id) ? "Cannot delete: Subject is in use" : "Delete Subject"}
+                                                                disabled={schedules.some(s => s.subjectId === subject._id)}
+                                                                title={schedules.some(s => s.subjectId === subject._id) ? "Cannot delete: Subject is in use" : "Delete Subject"}
                                                             >
                                                                 <Icon>delete</Icon>
                                                             </IconButton>
-                                                            {schedules.some(s => s.subjectId === subject.id) && (
-                                                                <IconButton onClick={() => handleOpenUsageModal(subject.id)} title="Find Usages">
+                                                            {schedules.some(s => s.subjectId === subject._id) && (
+                                                                <IconButton onClick={() => handleOpenUsageModal(subject._id)} title="Find Usages">
                                                                     <Icon>search</Icon>
                                                                 </IconButton>
                                                             )}
@@ -1859,7 +2094,7 @@
                                                                     <Box sx={{ mb: 3 }}>
                                                                         {editingTeachers.map((teacher, index) => (
                                                                             <Box 
-                                                                                key={teacher.id || `new-${index}`} 
+                                                                                key={teacher._id || `new-${index}`} 
                                                                                 sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, cursor: 'move', p: 1, border: '1px dashed grey' }}
                                                                                                                                             draggable={true}
                                                                                                                                             onDragStart={(e) => handleDragStart(e, index)}
@@ -1895,13 +2130,13 @@
                                                                                         updatedTeachers.splice(index, 1);
                                                                                         setEditingTeachers(updatedTeachers);
                                                                                     }}
-                                                                                    disabled={schedules.some(s => s.teacherId === teacher.id)}
-                                                                                    title={schedules.some(s => s.teacherId === teacher.id) ? "Cannot delete: Teacher is in use" : "Delete Teacher"}
+                                                                                    disabled={schedules.some(s => s.teacherId === teacher._id)}
+                                                                                    title={schedules.some(s => s.teacherId === teacher._id) ? "Cannot delete: Teacher is in use" : "Delete Teacher"}
                                                                                 >
                                                                                     <Icon>delete</Icon>
                                                                                 </IconButton>
-                                                                                {schedules.some(s => s.teacherId === teacher.id) && (
-                                                                                    <IconButton onClick={() => handleOpenTeacherUsageModal(teacher.id)} title="Find Usages">
+                                                                                {schedules.some(s => s.teacherId === teacher._id) && (
+                                                                                    <IconButton onClick={() => handleOpenTeacherUsageModal(teacher._id)} title="Find Usages">
                                                                                         <Icon>search</Icon>
                                                                                     </IconButton>
                                                                                 )}
@@ -1959,7 +2194,7 @@
                                                                                     <Typography>{dateInfo.formatted}</Typography>
                                                                                     <IconButton 
                                                                                         size="small" 
-                                                                                        onClick={() => handleDeleteTeacherUsagesForDay(teachers.find(t => t.name === teacherUsageData.teacherName)?.id, dateInfo.raw)}
+                                                                                        onClick={() => handleDeleteTeacherUsagesForDay(teachers.find(t => t.name === teacherUsageData.teacherName)?._id, dateInfo.raw)}
                                                                                         title={`Delete all '${teacherUsageData.teacherName}' entries for ${dateInfo.formatted}`}
                                                                                     >
                                                                                         <Icon>delete_outline</Icon>
@@ -1982,7 +2217,7 @@
                                                                                                                     <Box sx={{ mb: 3 }}>
                                                                                                                         {editingRooms.map((room, index) => (
                                                                                                                             <Box 
-                                                                                                                                key={room.id || `new-${index}`} 
+                                                                                                                                key={room._id || `new-${index}`} 
                                                                                                                                 sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, cursor: 'move', p: 1, border: '1px dashed grey' }}
                                                                                                                                 draggable={true}
                                                                                                                                 onDragStart={(e) => handleDragStart(e, index)}
@@ -2007,13 +2242,13 @@
                                                                                                                                         updatedRooms.splice(index, 1);
                                                                                                                                         setEditingRooms(updatedRooms);
                                                                                                                                     }}
-                                                                                                                                    disabled={schedules.some(s => s.roomId === room.id)}
-                                                                                                                                    title={schedules.some(s => s.roomId === room.id) ? "Cannot delete: Room is in use" : "Delete Room"}
+                                                                                                                                    disabled={schedules.some(s => s.roomId === room._id)}
+                                                                                                                                    title={schedules.some(s => s.roomId === room._id) ? "Cannot delete: Room is in use" : "Delete Room"}
                                                                                                                                 >
                                                                                                                                     <Icon>delete</Icon>
                                                                                                                                 </IconButton>
-                                                                                                                                {schedules.some(s => s.roomId === room.id) && (
-                                                                                                                                    <IconButton onClick={() => handleOpenRoomUsageModal(room.id)} title="Find Usages">
+                                                                                                                                {schedules.some(s => s.roomId === room._id) && (
+                                                                                                                                    <IconButton onClick={() => handleOpenRoomUsageModal(room._id)} title="Find Usages">
                                                                                                                                         <Icon>search</Icon>
                                                                                                                                     </IconButton>
                                                                                                                                 )}
@@ -2047,7 +2282,7 @@
                                                                                                                     </Box>
                                                                                                                 </Box>
                                                                                                               </Modal>
-                                                                    
+                                                                                                              
                                                                                                               <Modal open={isRoomUsageModalOpen} onClose={handleCloseRoomUsageModal}>
                                                                                                                 <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 400, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
                                                                                                                     <Typography variant="h6" component="h2" sx={{mb: 2}}>
@@ -2081,456 +2316,155 @@
                                                                                                               </Modal>
 
                                                                                                               <Modal open={isLessonCounterModalOpen} onClose={() => setIsLessonCounterModalOpen(false)}>
-                                                                                                                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
-                                                                                                                  <Typography variant="h6" component="h2" sx={{mb: 2}}>Lesson Counter</Typography>
-                                                                                                                  <Grid container spacing={2} alignItems="center">
-                                                                                                                    <Grid item xs={6}>
-                                                                                                                      <TextField
-                                                                                                                        label="Start Date"
-                                                                                                                        type="date"
-                                                                                                                        fullWidth
-                                                                                                                        InputLabelProps={{ shrink: true }}
-                                                                                                                        value={counterStartDate}
-                                                                                                                        onChange={(e) => setCounterStartDate(e.target.value)}
-                                                                                                                      />
+                                                                                                                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 500, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                                                                                                                    <Typography variant="h6" component="h2" sx={{mb: 2}}>Lesson Counter</Typography>
+                                                                                                                    <Grid container spacing={2}>
+                                                                                                                        <Grid item xs={6}>
+                                                                                                                            <TextField
+                                                                                                                                label="Start Date"
+                                                                                                                                type="date"
+                                                                                                                                value={counterStartDate}
+                                                                                                                                onChange={(e) => setCounterStartDate(e.target.value)}
+                                                                                                                                fullWidth
+                                                                                                                                InputLabelProps={{ shrink: true }}
+                                                                                                                            />
+                                                                                                                        </Grid>
+                                                                                                                        <Grid item xs={6}>
+                                                                                                                            <TextField
+                                                                                                                                label="End Date"
+                                                                                                                                type="date"
+                                                                                                                                value={counterEndDate}
+                                                                                                                                onChange={(e) => setCounterEndDate(e.target.value)}
+                                                                                                                                fullWidth
+                                                                                                                                InputLabelProps={{ shrink: true }}
+                                                                                                                            />
+                                                                                                                        </Grid>
+                                                                                                                        <Grid item xs={12}>
+                                                                                                                            <FormControl fullWidth>
+                                                                                                                                <InputLabel>Teacher</InputLabel>
+                                                                                                                                <Select
+                                                                                                                                    value={counterSelectedTeacher}
+                                                                                                                                    onChange={(e) => setCounterSelectedTeacher(e.target.value)}
+                                                                                                                                >
+                                                                                                                                    {teachers.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                                                                                                                                </Select>
+                                                                                                                            </FormControl>
+                                                                                                                        </Grid>
+                                                                                                                        <Grid item xs={12}>
+                                                                                                                            <FormControl fullWidth>
+                                                                                                                                <InputLabel>Subject (Optional)</InputLabel>
+                                                                                                                                <Select
+                                                                                                                                    value={counterSelectedSubject}
+                                                                                                                                    onChange={(e) => setCounterSelectedSubject(e.target.value)}
+                                                                                                                                >
+                                                                                                                                    <MenuItem value=""><em>Any Subject</em></MenuItem>
+                                                                                                                                    {subjects.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+                                                                                                                                </Select>
+                                                                                                                            </FormControl>
+                                                                                                                        </Grid>
                                                                                                                     </Grid>
-                                                                                                                    <Grid item xs={6}>
-                                                                                                                      <TextField
-                                                                                                                        label="End Date"
-                                                                                                                        type="date"
-                                                                                                                        fullWidth
-                                                                                                                        InputLabelProps={{ shrink: true }}
-                                                                                                                        value={counterEndDate}
-                                                                                                                        onChange={(e) => setCounterEndDate(e.target.value)}
-                                                                                                                      />
-                                                                                                                    </Grid>
-                                                                                                                    <Grid item xs={8}>
-                                                                                                                      <FormControl fullWidth>
-                                                                                                                        <InputLabel>Teacher</InputLabel>
-                                                                                                                        <Select value={counterSelectedTeacher} label="Teacher" onChange={(e) => setCounterSelectedTeacher(e.target.value)}>
-                                                                                                                          {teachers.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
-                                                                                                                        </Select>
-                                                                                                                      </FormControl>
-                                                                                                                    </Grid>
-                                                                                                                    <Grid item xs={4}>
-                                                                                                                      <Typography variant="h6" component="p">
-                                                                                                                        Total Hours: {lessonCount}
-                                                                                                                      </Typography>
-                                                                                                                    </Grid>
-                                                                                                                    <Grid item xs={8}>
-                                                                                                                      <FormControl fullWidth>
-                                                                                                                        <InputLabel>Subject (Optional)</InputLabel>
-                                                                                                                        <Select value={counterSelectedSubject} label="Subject (Optional)" onChange={(e) => setCounterSelectedSubject(e.target.value)}>
-                                                                                                                          <MenuItem value=""><em>All Subjects</em></MenuItem>
-                                                                                                                          {subjects.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-                                                                                                                        </Select>
-                                                                                                                      </FormControl>
-                                                                                                                    </Grid>
-                                                                                                                  </Grid>
-                                                                                                                  <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
-                                                                                                                    <Button onClick={() => setIsLessonCounterModalOpen(false)}>Close</Button>
-                                                                                                                  </Box>
+                                                                                                                    <Typography variant="h5" sx={{ mt: 3, textAlign: 'center' }}>
+                                                                                                                        Total Lessons: {lessonCount}
+                                                                                                                    </Typography>
+                                                                                                                    <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
+                                                                                                                        <Button onClick={() => setIsLessonCounterModalOpen(false)}>Close</Button>
+                                                                                                                    </Box>
                                                                                                                 </Box>
                                                                                                               </Modal>
-                                                                                                              <SendMailModal 
-                                                                                                                open={isSendMailModalOpen}
-                                                                                                                onClose={() => setIsSendMailModalOpen(false)}
-                                                                                                                teachers={teachers}
-                                                                                                                grades={grades}
-                                                                                                                emailBody={emailBody}
-                                                                                                                setEmailBody={setEmailBody}
-                                                                                                                recipients={emailRecipients}
-                                                                                                                setRecipients={setEmailRecipients}
-                                                                                                                currentDay={currentDay}
-                                                                                                                getWeekNumber={getWeekNumber}
-                                                                                                                selectedTeacher={selectedTeacher}
-                                                                                                                setSelectedTeacher={setSelectedTeacher}
-                                                                                                                selectedGrade={selectedGrade}
-                                                                                                                setSelectedGrade={setSelectedGrade}
-                                                                                                                formatDate={formatDate}
-                                                                                                                setCurrentDay={setCurrentDay}
-                                                                                                                dayFormatter={dayFormatter}
-                                                                                                              />
-                                                                                </>}
-                                                                              </Container>
-                                                                            </ThemeProvider>      );
+                                                                                                              
+                                                                                                              <Modal open={isSendMailModalOpen} onClose={handleCloseMailModal}>
+                                                                                                                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                                                                                                                    <Typography variant="h6" component="h2" sx={{mb: 2}}>Send Schedule via Email</Typography>
+                                                                                                                    <TextField
+                                                                                                                        label="Email Body"
+                                                                                                                        multiline
+                                                                                                                        rows={6}
+                                                                                                                        value={emailBody}
+                                                                                                                        onChange={(e) => setEmailBody(e.target.value)}
+                                                                                                                        fullWidth
+                                                                                                                        variant="outlined"
+                                                                                                                        sx={{ mb: 2 }}
+                                                                                                                    />
+                                                                                                                    <Typography variant="subtitle1" sx={{ mb: 1 }}>Recipients</Typography>
+                                                                                                                    <Box sx={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ccc', p: 1, mb: 2 }}>
+                                                                                                                        {emailRecipients.map(r => (
+                                                                                                                            <FormControlLabel
+                                                                                                                                key={r.id}
+                                                                                                                                control={
+                                                                                                                                    <Checkbox
+                                                                                                                                        checked={!!selectedRecipients[r.id]}
+                                                                                                                                        onChange={(e) => {
+                                                                                                                                            setSelectedRecipients(prev => ({ ...prev, [r.id]: e.target.checked }));
+                                                                                                                                        }}
+                                                                                                                                    />
+                                                                                                                                }
+                                                                                                                                label={r.email ? `${r.name} (${r.email})` : r.name}
+                                                                                                                            />
+                                                                                                                        ))}
+                                                                                                                    </Box>
+                                                                                                                    <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
+                                                                                                                        <Button onClick={handleCloseMailModal} sx={{mr: 1}}>Cancel</Button>
+                                                                                                                        <Button variant="contained" onClick={handleSendMail} disabled={sendingMail}>
+                                                                                                                            {sendingMail ? <CircularProgress size={24} /> : 'Send'}
+                                                                                                                        </Button>
+                                                                                                                    </Box>
+                                                                                                                </Box>
+                                                                                                              </Modal>
+
+            </>}
+          </Container>
+        </ThemeProvider>
+      );
     }
 
     // ===================================================================================
-    // SEND MAIL MODAL COMPONENT
+    // ROOT COMPONENT
     // ===================================================================================
-    function SendMailModal({ open, onClose, teachers, grades, emailBody, setEmailBody, recipients, setRecipients, currentDay, getWeekNumber, selectedTeacher, setSelectedTeacher, selectedGrade, setSelectedGrade, formatDate, setCurrentDay, dayFormatter }) {
-      const [isSending, setIsSending] = React.useState(false);
+    function Root() {
+      const [user, setUser] = React.useState(null);
+      const [authError, setAuthError] = React.useState(null);
+      const [loading, setLoading] = React.useState(true);
 
-      const handleRecipientChange = (event) => {
-        const { name, checked } = event.target;
-        setRecipients(prev => ({ ...prev, [name]: checked }));
+      React.useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const userParam = urlParams.get('user');
+        const errorParam = urlParams.get('error');
+
+        if (userParam) {
+          try {
+            const userData = JSON.parse(decodeURIComponent(userParam));
+            sessionStorage.setItem('user', JSON.stringify(userData));
+            setUser(userData);
+            // Clean up URL
+            window.history.replaceState({}, document.title, "/");
+          } catch (e) {
+            console.error("Failed to parse user data from URL", e);
+            setAuthError("Authentication failed. Please try again.");
+          }
+        } else if (errorParam) {
+          setAuthError(errorParam);
+        } else {
+          const storedUser = sessionStorage.getItem('user');
+          if (storedUser) {
+            setUser(JSON.parse(storedUser));
+          }
+        }
+        setLoading(false);
+      }, []);
+
+      const handleLogout = () => {
+        sessionStorage.removeItem('user');
+        setUser(null);
       };
 
-      const handleSend = async () => {
-        setIsSending(true);
-        const originalSelectedTeacher = selectedTeacher;
-        const originalDay = new Date(currentDay); // Save the original day
+      if (loading) {
+        return <ThemeProvider theme={theme}><Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><CircularProgress /></Container></ThemeProvider>;
+      }
 
-        try {
-          // 1. Save the email body text
-          await fetch(`${API_URL}/email_text/1`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: emailBody })
-          });
-        } catch (error) {
-          console.error("Failed to save email text:", error);
-          // Non-fatal
-        }
+      return user ? <App user={user} onLogout={handleLogout} /> : <Login error={authError} />;
+    }
 
-        // 2. Separate recipients
-        const allTeachersRecipient = recipients['ALL_TEACHERS'] ? { email: 'a.bukhariev@krumbach.school', type: 'all' } : null;
-        const individualRecipients = Object.keys(recipients)
-          .filter(id => id !== 'ALL_TEACHERS' && !id.startsWith('grade-') && recipients[id])
-          .map(id => teachers.find(t => t.id === id))
-          .filter(t => t && t.email)
-          .map(t => ({ email: t.email, teacherId: t.id, name: t.name, type: 'individual' }));
-        
-        const gradeRecipients = Object.keys(recipients)
-          .filter(id => id.startsWith('grade-') && recipients[id])
-          .map(id => {
-            const grade = parseInt(id.split('-')[1]);
-            return { email: `g${grade}@krumbach.school`, grade: grade, type: 'grade' };
-          });
-
-        if (!allTeachersRecipient && individualRecipients.length === 0 && gradeRecipients.length === 0) {
-          alert('Please select at least one recipient.');
-          setIsSending(false);
-          return;
-        }
-        
-        const { jsPDF } = window.jspdf;
-
-        // 3. Process "All Teachers" (General Schedule)
-        if (allTeachersRecipient) {
-            try {
-                // Ensure general view is active
-                if (selectedTeacher !== '') {
-                    setSelectedTeacher('');
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
-
-                const pdf = new jsPDF('landscape', 'pt', 'a4');
-                const tableNode = document.querySelector('#schedule-table');
-                const style = document.createElement('style');
-                style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                document.head.appendChild(style);
-                tableNode.classList.add('export-style');
-
-                const sourceDay = new Date(currentDay);
-                const sourceDayOfWeek = sourceDay.getDay();
-                const mondayOfCurrentWeek = new Date(sourceDay);
-                mondayOfCurrentWeek.setDate(sourceDay.getDate() - sourceDayOfWeek + (sourceDayOfWeek === 0 ? -6 : 1));
-
-                for (let i = 0; i < 5; i++) { // Loop Monday to Friday
-                    const targetDay = new Date(mondayOfCurrentWeek);
-                    targetDay.setDate(mondayOfCurrentWeek.getDate() + i);
-                    
-                    setCurrentDay(targetDay);
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for re-render
-
-                const canvas = await html2canvas(document.querySelector('#schedule-table'), { scale: 1.5 });
-                    const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                    const pdfWidth = pdf.internal.pageSize.getWidth();
-                    const imgWidth = pdfWidth - 80;
-                    const ratio = canvas.width / canvas.height;
-                    const imgHeight = imgWidth / ratio;
-
-                    if (i > 0) {
-                        pdf.addPage();
-                    }
-                    
-                    const dateText = `${dayFormatter.format(targetDay)} - ${formatDate(targetDay)}`;
-                    pdf.setFontSize(12);
-                    pdf.text(dateText, 40, 30);
-                    pdf.addImage(imgData, 'JPEG', 40, 40, imgWidth, imgHeight);
-                }
-
-                tableNode.classList.remove('export-style');
-                document.head.removeChild(style);
-
-                const fridayOfCurrentWeek = new Date(mondayOfCurrentWeek);
-                fridayOfCurrentWeek.setDate(mondayOfCurrentWeek.getDate() + 4);
-
-                const weekNumber = getWeekNumber(currentDay);
-                const weekRange = `${formatDate(mondayOfCurrentWeek)} to ${formatDate(fridayOfCurrentWeek)}`;
-                const subject = `Schedule upcoming Week ${weekNumber} (${weekRange})`;
-                const fileName = `SKIS_Schedule_Week_${weekNumber}.pdf`;
-                const pdfDataUri = pdf.output('datauristring');
-
-                const payload = { emailBody, recipient: allTeachersRecipient, subject, fileName, pdfDataUri };
-
-                const response = await fetch(`${API_URL}/send-schedule`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const result = await response.json();
-                    throw new Error(result.error || result.message || `Failed to send email to ${allTeachersRecipient.email}.`);
-                }
-
-            } catch (error) {
-                console.error('Error sending general schedule:', error);
-                alert(`Error sending general schedule: ${error.message}`);
-            }
-        }
-
-        // 4. Process Individual Teachers
-        for (const recipient of individualRecipients) {
-            try {
-                // Switch to this teacher's view
-                setSelectedTeacher(recipient.teacherId);
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                const pdf = new jsPDF('landscape', 'pt', 'a4');
-                const tableSelector = '#teacher-schedule-table';
-                const tableNode = document.querySelector(tableSelector);
-                if (!tableNode) throw new Error(`Could not find table: ${tableSelector}`);
-
-                const style = document.createElement('style');
-                style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                document.head.appendChild(style);
-                tableNode.classList.add('export-style');
-
-                const canvas = await html2canvas(document.querySelector('#teacher-schedule-table'), { scale: 1.5 });
-                const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                
-                tableNode.classList.remove('export-style');
-                document.head.removeChild(style);
-
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const imgWidth = pdfWidth - 80;
-                const ratio = canvas.width / canvas.height;
-                const imgHeight = imgWidth / ratio;
-
-                const weekNumber = getWeekNumber(currentDay);
-                const monday = new Date(currentDay);
-                monday.setDate(currentDay.getDate() - (currentDay.getDay() === 0 ? 6 : currentDay.getDay() - 1));
-                const friday = new Date(monday);
-                friday.setDate(monday.getDate() + 4);
-                const weekRange = `${formatDate(monday)} to ${formatDate(friday)}`;
-
-                const subject = `Schedule upcoming Week ${weekNumber} (${weekRange})`;
-                const fileName = `SKIS_${recipient.name.replace(/\s/g, '_')}_Schedule_Week_${weekNumber}.pdf`;
-                const title = `Personal Schedule for ${recipient.name} - Week ${weekNumber}`;
-
-                pdf.setFontSize(12);
-                pdf.text(title, 40, 30);
-                pdf.addImage(imgData, 'JPEG', 40, 40, imgWidth, imgHeight);
-                
-                const pdfDataUri = pdf.output('datauristring');
-                const payload = { emailBody, recipient, subject, fileName, pdfDataUri };
-
-                const response = await fetch(`${API_URL}/send-schedule`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const result = await response.json();
-                    throw new Error(result.error || result.message || `Failed to send email to ${recipient.email}.`);
-                }
-            } catch (error) {
-                console.error(`Error sending schedule to ${recipient.name}:`, error);
-                alert(`Error sending schedule to ${recipient.name}: ${error.message}`);
-            }
-        }
-
-        // 5. Process Grade Recipients
-        for (const recipient of gradeRecipients) {
-            try {
-                // Switch to this grade's view
-                setSelectedGrade(recipient.grade);
-                setSelectedTeacher('');
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                const pdf = new jsPDF('landscape', 'pt', 'a4');
-                const tableSelector = '#grade-schedule-table';
-                const tableNode = document.querySelector(tableSelector);
-                if (!tableNode) throw new Error(`Could not find table: ${tableSelector}`);
-
-                const style = document.createElement('style');
-                style.innerHTML = `.export-style th, .export-style td { border: 1px solid #000 !important; }`;
-                document.head.appendChild(style);
-                tableNode.classList.add('export-style');
-
-                const canvas = await html2canvas(document.querySelector('#grade-schedule-table'), { scale: 1.5 });
-                const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                
-                tableNode.classList.remove('export-style');
-                document.head.removeChild(style);
-
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const imgWidth = pdfWidth - 80;
-                const ratio = canvas.width / canvas.height;
-                const imgHeight = imgWidth / ratio;
-
-                const weekNumber = getWeekNumber(currentDay);
-                const monday = new Date(currentDay);
-                monday.setDate(currentDay.getDate() - (currentDay.getDay() === 0 ? 6 : currentDay.getDay() - 1));
-                const friday = new Date(monday);
-                friday.setDate(monday.getDate() + 4);
-                const weekRange = `${formatDate(monday)} to ${formatDate(friday)}`;
-
-                const subject = `Schedule upcoming Week ${weekNumber} (${weekRange})`;
-                const fileName = `SKIS_Grade_${recipient.grade}_Schedule_Week_${weekNumber}.pdf`;
-                const title = `Schedule for Grade ${recipient.grade} - Week ${weekNumber}`;
-
-                pdf.setFontSize(12);
-                pdf.text(title, 40, 30);
-                pdf.addImage(imgData, 'JPEG', 40, 40, imgWidth, imgHeight);
-                
-                const pdfDataUri = pdf.output('datauristring');
-                const payload = { emailBody, recipient, subject, fileName, pdfDataUri };
-
-                const response = await fetch(`${API_URL}/send-schedule`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const result = await response.json();
-                    throw new Error(result.error || result.message || `Failed to send email to ${recipient.email}.`);
-                }
-            } catch (error) {
-                console.error(`Error sending schedule to Grade ${recipient.grade}:`, error);
-                alert(`Error sending schedule to Grade ${recipient.grade}: ${error.message}`);
-            }
-        }
-
-        // 6. Cleanup
-        alert('All selected emails have been processed.');
-        setIsSending(false);
-        setSelectedTeacher(originalSelectedTeacher); // Restore original view
-        setSelectedGrade(''); // Clear selected grade
-        setCurrentDay(originalDay); // Restore original day
-        onClose();
-      };
-
-      return (
-        <Modal open={open} onClose={onClose}>
-          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 800, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
-            <Typography variant="h6" component="h2" sx={{mb: 2}}>Send Schedule via Email</Typography>
-            {isSending ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', height: '300px' }}>
-                <CircularProgress />
-                <Typography sx={{mt: 2}}>Sending emails... Please wait.</Typography>
-              </Box>
-            ) : (
-              <>
-                <TextField
-                  label="Email Body"
-                  multiline
-                  rows={4}
-                  fullWidth
-                  value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  sx={{mb: 2}}
-                />
-                <Typography variant="subtitle1" sx={{mb: 1}}>Select Recipients</Typography>
-                <Box sx={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ccc', p: 1, mb: 2 }}>
-                  <FormControlLabel
-                    control={<Checkbox checked={recipients['ALL_TEACHERS'] || false} onChange={handleRecipientChange} name="ALL_TEACHERS" />}
-                    label="ALL TEACHERS (General Schedule)"
-                  />
-                  <hr/>
-                  {teachers.filter(t => t.email).map(teacher => (
-                    <FormControlLabel
-                      key={teacher.id}
-                      control={<Checkbox checked={recipients[teacher.id] || false} onChange={handleRecipientChange} name={teacher.id} />}
-                      label={`${teacher.name} (${teacher.email})`}
-                    />
-                  ))}
-                  <hr/>
-                  {grades.map(grade => (
-                    <FormControlLabel
-                      key={`grade-${grade}`}
-                      control={<Checkbox checked={recipients[`grade-${grade}`] || false} onChange={handleRecipientChange} name={`grade-${grade}`} />}
-                      label={`Grade ${grade} (g${grade}@krumbach.school)`}
-                    />
-                  ))}
-                </Box>
-                <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
-                  <Button onClick={onClose} sx={{mr: 1}}>Cancel</Button>
-                  <Button variant="contained" onClick={handleSend}>Send</Button>
-                </Box>
-              </>
-            )}
-          </Box>
-        </Modal>
-      );
-    }                
-                
-                    // ===================================================================================
-                    // AUTH WRAPPER COMPONENT
-                    // ===================================================================================
-                    function AuthWrapper() {
-                      const [user, setUser] = React.useState(null);
-                      const [isLoading, setIsLoading] = React.useState(true);
-                
-                      React.useEffect(() => {
-                        // Check for user object from Google redirect
-                        const params = new URLSearchParams(window.location.search);
-                        const userParam = params.get('user');
-                        const errorParam = params.get('error');
-                
-                        if (userParam) {
-                          const loggedInUser = JSON.parse(decodeURIComponent(userParam));
-                          localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
-                          setUser(loggedInUser);
-                          // Clean URL after processing
-                          window.history.replaceState({}, document.title, "/");
-                        } else if (errorParam) {
-                          // Let the Login component handle the error display
-                          console.error("Login Error:", errorParam);
-                        } else {
-                          // Check for existing session in localStorage
-                          const storedUser = localStorage.getItem('currentUser');
-                          if (storedUser) {
-                            setUser(JSON.parse(storedUser));
-                          }
-                        }
-                        setIsLoading(false);
-                      }, []);
-                
-                      const handleLogin = (loggedInUser) => {
-                        localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
-                        setUser(loggedInUser);
-                      };
-                
-                      const handleLogout = () => {
-                        localStorage.removeItem('currentUser');
-                        localStorage.removeItem('lastViewedDate');
-                        setUser(null);
-                      };
-                
-                      if (isLoading) {
-                        return <ThemeProvider theme={theme}><Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}><CircularProgress /></Box></ThemeProvider>;
-                      }
-                
-                      const params = new URLSearchParams(window.location.search);
-                      const errorParam = params.get('error');
-                
-                      return (
-                        user
-                          ? <App user={user} onLogout={handleLogout} />
-                          : <Login error={errorParam} />
-                      );
-                    }
-                
-                    const root = ReactDOM.createRoot(document.getElementById('root'));
-                    root.render(<AuthWrapper />);
-                
+    ReactDOM.render(<Root />, document.getElementById('root'));
   </script>
 </body>
 </html>

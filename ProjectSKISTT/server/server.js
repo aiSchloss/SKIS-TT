@@ -141,37 +141,9 @@ app.get('/api/data', async (req, res) => {
   res.json({ schedules, teachers, subjects, rooms, grades });
 });
 
-// Helper function to check for room availability conflicts
-async function checkRoomAvailability(roomId, day, timeSlotId, currentEventId = null) {
-  const query = {
-    roomId: roomId,
-    day: day,
-    timeSlotId: parseInt(timeSlotId, 10)
-  };
 
-  if (currentEventId) {
-    query._id = { $ne: new ObjectId(currentEventId) };
-  }
 
-  const existingEvent = await db.collection('schedules').findOne(query);
-  return !existingEvent; // Returns true if available, false if not
-}
 
-// Helper function to check for teacher conflicts
-async function checkTeacherConflict(teacherId, day, timeSlotId, currentEventId = null) {
-  const query = {
-    teacherId: teacherId,
-    day: day,
-    timeSlotId: parseInt(timeSlotId, 10),
-  };
-
-  if (currentEventId) {
-    query._id = { $ne: new ObjectId(currentEventId) };
-  }
-
-  const conflictingEvent = await db.collection('schedules').findOne(query);
-  return conflictingEvent; // Returns the conflicting event object or null
-}
 
 // POST a new event
 app.post('/api/events', async (req, res) => {
@@ -179,20 +151,32 @@ app.post('/api/events', async (req, res) => {
     const newEvent = req.body;
     const { roomId, day, timeSlotId, grade, teacherId } = newEvent;
 
-    // --- Room Conflict Validation ---
-    if (roomId && timeSlotId) {
-      const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId);
-      if (!isRoomAvailable) {
-        return res.status(400).json({ message: 'Room is already booked for this time slot.' });
-      }
-    }
+    // --- Comprehensive Conflict Validation ---
+    if (timeSlotId && (teacherId || roomId)) {
+        const timeSlotEvents = await db.collection('schedules').find({
+            day: day,
+            timeSlotId: parseInt(timeSlotId, 10)
+        }).toArray();
 
-    // --- Teacher Conflict Validation ---
-    if (teacherId && timeSlotId) {
-      const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId);
-      if (conflictingEvent && conflictingEvent.roomId !== roomId) {
-        return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
-      }
+        for (const existingEvent of timeSlotEvents) {
+            // Teacher conflict: same teacher, different room
+            if (teacherId && existingEvent.teacherId === teacherId && existingEvent.roomId !== roomId) {
+                return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
+            }
+
+            // Room conflict: same room, different teacher
+            if (roomId && existingEvent.roomId === roomId && existingEvent.teacherId !== teacherId) {
+                // Fetch teacher names for a more informative error message
+                const newTeacherInfo = teacherId ? await db.collection('teachers').findOne({ _id: new ObjectId(teacherId) }) : { name: 'Another teacher' };
+                const existingTeacherInfo = existingEvent.teacherId ? await db.collection('teachers').findOne({ _id: new ObjectId(existingEvent.teacherId) }) : { name: 'A teacher' };
+                return res.status(400).json({ message: `Room is already booked by ${existingTeacherInfo?.name || 'a teacher'} at this time. Cannot schedule ${newTeacherInfo?.name || 'this lesson'}.` });
+            }
+
+            // Duplicate event conflict: same room, same teacher, same grade
+            if (roomId && teacherId && existingEvent.roomId === roomId && existingEvent.teacherId === teacherId && existingEvent.grade === grade) {
+                 return res.status(400).json({ message: 'This exact event (teacher, room, class) is already scheduled at this time.' });
+            }
+        }
     }
     
     // Ensure numeric types before saving
@@ -234,19 +218,32 @@ app.put('/api/events/:id', async (req, res) => {
         const updatedEvent = req.body;
         const { roomId, day, timeSlotId, grade, teacherId } = updatedEvent;
 
-        // --- Room Conflict Validation ---
-        if (roomId && timeSlotId) {
-            const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, eventId);
-            if (!isRoomAvailable) {
-                return res.status(400).json({ message: 'Room is already booked for this time slot.' });
-            }
-        }
+        // --- Comprehensive Conflict Validation ---
+        if (timeSlotId && (teacherId || roomId)) {
+            const timeSlotEvents = await db.collection('schedules').find({
+                _id: { $ne: new ObjectId(eventId) }, // Exclude the event being updated
+                day: day,
+                timeSlotId: parseInt(timeSlotId, 10)
+            }).toArray();
 
-        // --- Teacher Conflict Validation ---
-        if (teacherId && timeSlotId) {
-            const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId, eventId);
-            if (conflictingEvent && conflictingEvent.roomId !== roomId) {
-                return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
+            for (const existingEvent of timeSlotEvents) {
+                // Teacher conflict: same teacher, different room
+                if (teacherId && existingEvent.teacherId === teacherId && existingEvent.roomId !== roomId) {
+                    return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
+                }
+
+                // Room conflict: same room, different teacher
+                if (roomId && existingEvent.roomId === roomId && existingEvent.teacherId !== teacherId) {
+                    // Fetch teacher names for a more informative error message
+                    const newTeacherInfo = teacherId ? await db.collection('teachers').findOne({ _id: new ObjectId(teacherId) }) : { name: 'Another teacher' };
+                    const existingTeacherInfo = existingEvent.teacherId ? await db.collection('teachers').findOne({ _id: new ObjectId(existingEvent.teacherId) }) : { name: 'A teacher' };
+                    return res.status(400).json({ message: `Room is already booked by ${existingTeacherInfo?.name || 'a teacher'} at this time. Cannot schedule ${newTeacherInfo?.name || 'this lesson'}.` });
+                }
+
+                // Duplicate event conflict: same room, same teacher, same grade
+                if (roomId && teacherId && existingEvent.roomId === roomId && existingEvent.teacherId === teacherId && existingEvent.grade === grade) {
+                    return res.status(400).json({ message: 'This exact event (teacher, room, class) is already scheduled at this time.' });
+                }
             }
         }
         
@@ -254,6 +251,10 @@ app.put('/api/events/:id', async (req, res) => {
         // Ensure numeric types before saving
         if (payload.timeSlotId) payload.timeSlotId = parseInt(payload.timeSlotId, 10);
         if (payload.grade) payload.grade = parseInt(payload.grade, 10) || null;
+        
+        // The frontend might send back the _id in the payload, which is immutable.
+        // It's safer to remove it before the update operation.
+        delete payload._id;
 
         const result = await db.collection('schedules').updateOne(
             { _id: new ObjectId(eventId) },

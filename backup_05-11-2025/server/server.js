@@ -3,18 +3,19 @@ import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { createHash } from 'crypto'
 import { google } from 'googleapis'
-import { Low } from 'lowdb'
-import { JSONFile } from 'lowdb/node'
+import { MongoClient, ObjectId } from 'mongodb'
 import express from 'express'
 import cors from 'cors'
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail'; // Import SendGrid Mail
 
 // --- Google OAuth 2.0 Configuration ---
 // IMPORTANT: Replace with your own credentials from Google Cloud Console
 const GOOGLE_CLIENT_ID = '567055867533-cutlobhghu3l1bepecla3pvsrj4sojuk.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = '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';
-// This should match the authorized redirect URI in your Google Cloud project
-const REDIRECT_URI = 'http://localhost:3001/api/auth/google/callback';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
+const REDIRECT_URI = process.env.API_URL ? `${process.env.API_URL}/api/auth/google/callback` : 'http://localhost:3001/api/auth/google/callback';
+
+console.log(`Using REDIRECT_URI: ${REDIRECT_URI}`);
 
 const oauth2Client = new google.auth.OAuth2(
   GOOGLE_CLIENT_ID,
@@ -25,129 +26,60 @@ const oauth2Client = new google.auth.OAuth2(
 // Initialize Express app
 const app = express()
 app.use(cors()) // Enable CORS for all routes
-app.use(express.json({ limit: '50mb' }))
+app.use(express.json({ limit: '25mb' }))
 
-// Initialize lowdb database
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const file = join(__dirname, 'db.json')
-const adapter = new JSONFile(file)
-
-// Set default data and initialize db
-const defaultData = {
-  schedules: [],
-  teachers: [
-    { id: 'CW', name: 'CW' }, { id: 'TS', name: 'TS' }, { id: 'VV', name: 'VV' }, 
-    { id: 'SQ', name: 'SQ' }, { id: 'CH', name: 'CH' }, { id: 'EB', name: 'EB' }, 
-    { id: 'MM', name: 'MM' }, { id: 'ES', name: 'ES' }, { id: 'AA', name: 'AA' }, 
-    { id: 'AT', name: 'AT' }, { id: 'EP', name: 'EP' }, { id: 'LV', name: 'LV' }, 
-    { id: 'NPB', name: 'NPB' }, { id: 'TG', name: 'TG' }, { id: 'EK', name: 'EK' }
-  ],
-  subjects: [
-    { id: 1, name: 'History', color: '#c8e6c9' },
-    { id: 2, name: 'English', color: '#d7eaf3' },
-    { id: 3, name: 'Mathematics', color: '#ffcdd2' },
-    { id: 4, name: 'Biology', color: '#dcedc8' },
-    { id: 5, name: 'Chemistry', color: '#fce4ec' },
-    { id: 6, name: 'German', color: '#ffe0b2' },
-    { id: 7, name: 'Russian', color: '#fff9c4' },
-    { id: 8, name: 'Sport', color: '#ffccbc' },
-    { id: 9, name: 'Homework', color: '#d6dde1' },
-    { id: 10, name: 'Persian', color: '#ffe0b2' },
-    { id: 11, name: 'Russian Literature', color: '#e0d1dc' },
-    { id: 12, name: 'CAS', color: '#b2dfdb' },
-    { id: 13, name: 'Physics', color: '#d1d4f0' },
-    { id: 14, name: 'Art', color: '#d7ccc8' },
-    { id: 15, name: 'Music', color: '#f0f4c3' },
-    { id: 16, name: 'Singing', color: '#fff9c4' },
-    { id: 17, name: 'TOK', color: '#b2ebf2' },
-    { id: 18, name: 'ESS', color: '#f5f5f5' }
-  ],
-  rooms: [
-    { id: 1, name: 'room 1.1' }, { id: 2, name: 'room 1.2' }, { id: 3, name: 'room 1.3' }, 
-    { id: 4, name: 'room 1.4' }, { id: 5, name: 'room 1.5' }, { id: 6, name: 'room 1.6' }, 
-    { id: 7, name: 'room 1.7' }, { id: 8, name: 'Lab 1' }, { id: 9, name: 'Lab 4' }, 
-    { id: 10, name: 'Artroom' }, { id: 11, name: 'library online' }
-  ],
-  grades: [7, 8, 9, 10, 11, 12]
-}
-
-const db = new Low(adapter, defaultData)
-
-try {
-  await db.read()
-
-  // --- Data Migrations ---
-  // Simple migration to add 'order' to teachers and rooms if it doesn't exist
-  let needsWrite = false;
-  if (db.data.teachers.some(t => t.order === undefined)) {
-    console.log('Running migration: Adding "order" field to teachers...');
-    db.data.teachers.forEach((teacher, index) => {
-      if (teacher.order === undefined) {
-        teacher.order = index;
-      }
-    });
-    needsWrite = true;
-  }
-  if (db.data.rooms.some(r => r.order === undefined)) {
-    console.log('Running migration: Adding "order" field to rooms...');
-    db.data.rooms.forEach((room, index) => {
-      if (room.order === undefined) {
-        room.order = index;
-      }
-    });
-    needsWrite = true;
-  }
-
-  if (needsWrite) {
-    await db.write();
-    console.log('Migration complete. Database updated.');
-  }
-} catch (error) {
-  console.error('Error during database initialization or migration:', error);
+// --- MongoDB Connection ---
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error('FATAL ERROR: MONGODB_URI environment variable is not set.');
   process.exit(1);
 }
 
+let db;
+const client = new MongoClient(MONGODB_URI);
 
+async function connectToMongo() {
+  try {
+    await client.connect();
+    console.log('Successfully connected to MongoDB.');
+    db = client.db(); // Use the default database from the connection string
+  } catch (error) {
+    console.error('Error connecting to MongoDB:', error);
+    process.exit(1);
+  }
+}
 
-// Nodemailer setup for testing with Ethereal
-// This will create a test account and log the credentials to the console
-// and open a preview URL to see the sent email.
-let transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // Use `true` for port 465, `false` for other ports like 587
-    auth: {
-        user: "schedule@krumbach.school",
-        pass: "rxua ohxn nibl tapy"
-    }
-});
+connectToMongo();
 
+// --- SendGrid Setup ---
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+const SENDER_EMAIL = process.env.SENDER_EMAIL;
 
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+  console.log('SendGrid API Key set.');
+} else {
+  console.warn('SENDGRID_API_KEY environment variable is not set. Email sending will not work.');
+}
 
 // --- API Endpoints for the schedule ---
 
 // GET email text
 app.get('/api/email_text', async (req, res) => {
-  await db.read();
-  res.json(db.data.email_text[0] || { id: 1, text: '' });
+  const emailText = await db.collection('email_text').findOne({ id: 1 });
+  res.json(emailText || { id: 1, text: '' });
 });
 
 // PUT (update) email text
 app.put('/api/email_text/:id', async (req, res) => {
     try {
         const { text } = req.body;
-        const emailText = db.data.email_text[0];
-
-        if (!emailText) {
-            // This case is unlikely if db.json is set up correctly
-            db.data.email_text[0] = { id: 1, text: text };
-        } else {
-            emailText.text = text;
-        }
-
-        await db.write();
-        res.json(emailText);
+        const result = await db.collection('email_text').updateOne(
+            { id: 1 },
+            { $set: { text: text } },
+            { upsert: true }
+        );
+        res.json({ id: 1, text });
     } catch (error) {
         console.error('Error updating email text:', error);
         res.status(500).json({ message: 'Error updating email text' });
@@ -155,11 +87,11 @@ app.put('/api/email_text/:id', async (req, res) => {
 });
 
 // POST to send schedule email
-app.post('/api/send-schedule', express.json({ limit: '50mb' }), async (req, res) => {
+app.post('/api/send-schedule', async (req, res) => {
     const { emailBody, recipient, subject, fileName, pdfDataUri } = req.body;
 
-    if (!transporter) {
-        return res.status(503).json({ message: 'Email service is not ready yet.' });
+    if (!SENDGRID_API_KEY || !SENDER_EMAIL) {
+        return res.status(503).json({ message: 'Email service is not configured. SENDGRID_API_KEY or SENDER_EMAIL is missing.' });
     }
     if (!recipient || !recipient.email) {
         return res.status(400).json({ message: 'Recipient is not valid.' });
@@ -169,31 +101,30 @@ app.post('/api/send-schedule', express.json({ limit: '50mb' }), async (req, res)
     }
 
     try {
-        // The data URI has a prefix like "data:application/pdf;base64," which we need to remove.
         const base64Data = pdfDataUri.split(';base64,').pop();
 
-        const mailOptions = {
-            from: '"SKIS Schedule" <schedule@krumbach.school>',
+        const msg = {
             to: recipient.email,
+            from: SENDER_EMAIL, // Use the verified sender email
             subject: subject,
-            text: emailBody,
-            attachments: [{
-                filename: fileName,
-                content: base64Data,
-                encoding: 'base64',
-                contentType: 'application/pdf'
-            }]
+            html: `<p>${emailBody.replace(/\n/g, '<br>')}</p>`, // Convert newlines to <br> for HTML email
+            attachments: [
+                {
+                    content: base64Data,
+                    filename: fileName,
+                    type: 'application/pdf',
+                    disposition: 'attachment',
+                },
+            ],
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`Message sent to ${recipient.email}: %s`, info.messageId);
-        // For Gmail, there's no direct preview URL like with Ethereal.
-        // You'll need to check the actual inbox.
+        await sgMail.send(msg);
+        console.log(`Email sent to ${recipient.email} via SendGrid.`);
 
         res.status(200).json({ message: `Email sent successfully to ${recipient.email}!` });
 
     } catch (error) {
-        console.error(`Error sending schedule email to ${recipient.email}:`, error);
+        console.error(`Error sending schedule email to ${recipient.email} via SendGrid:`, error);
         res.status(500).json({ message: 'Failed to send email.', error: error.message });
     }
 });
@@ -202,19 +133,76 @@ app.post('/api/send-schedule', express.json({ limit: '50mb' }), async (req, res)
 
 // GET all data (for simplicity, in a real app you'd paginate or filter)
 app.get('/api/data', async (req, res) => {
-  await db.read()
-  res.json(db.data)
+  const schedules = await db.collection('schedules').find({}).toArray();
+  const teachers = await db.collection('teachers').find({}).sort({ order: 1 }).toArray();
+  const subjects = await db.collection('subjects').find({}).sort({ order: 1 }).toArray();
+  const rooms = await db.collection('rooms').find({}).sort({ order: 1 }).toArray();
+  const grades = (await db.collection('grades').findOne({}))?.values || [7, 8, 9, 10, 11, 12];
+  res.json({ schedules, teachers, subjects, rooms, grades });
 });
+
+// Helper function to check for room availability conflicts
+async function checkRoomAvailability(roomId, day, timeSlotId, currentEventId = null) {
+  const query = {
+    roomId: roomId,
+    day: day,
+    timeSlotId: parseInt(timeSlotId, 10)
+  };
+
+  if (currentEventId) {
+    query._id = { $ne: new ObjectId(currentEventId) };
+  }
+
+  const existingEvent = await db.collection('schedules').findOne(query);
+  return !existingEvent; // Returns true if available, false if not
+}
+
+// Helper function to check for teacher conflicts
+async function checkTeacherConflict(teacherId, day, timeSlotId, currentEventId = null) {
+  const query = {
+    teacherId: teacherId,
+    day: day,
+    timeSlotId: parseInt(timeSlotId, 10),
+  };
+
+  if (currentEventId) {
+    query._id = { $ne: new ObjectId(currentEventId) };
+  }
+
+  const conflictingEvent = await db.collection('schedules').findOne(query);
+  return conflictingEvent; // Returns the conflicting event object or null
+}
 
 // POST a new event
 app.post('/api/events', async (req, res) => {
   try {
     const newEvent = req.body;
-    newEvent.id = Date.now(); // Simple unique ID
-    db.data.schedules.push(newEvent);
-    await db.write();
-    res.status(201).json(newEvent);
+    const { roomId, day, timeSlotId, grade, teacherId } = newEvent;
+
+    // --- Room Conflict Validation ---
+    if (roomId && timeSlotId) {
+      const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId);
+      if (!isRoomAvailable) {
+        return res.status(400).json({ message: 'Room is already booked for this time slot.' });
+      }
+    }
+
+    // --- Teacher Conflict Validation ---
+    if (teacherId && timeSlotId) {
+      const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId);
+      if (conflictingEvent && conflictingEvent.roomId !== roomId) {
+        return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
+      }
+    }
+    
+    // Ensure numeric types before saving
+    if (newEvent.timeSlotId) newEvent.timeSlotId = parseInt(newEvent.timeSlotId, 10);
+    if (newEvent.grade) newEvent.grade = parseInt(newEvent.grade, 10) || null; // Store as null if not a valid number
+
+    const result = await db.collection('schedules').insertOne(newEvent);
+    res.status(201).json({ ...newEvent, _id: result.insertedId });
   } catch (error) {
+    console.error('Error saving event:', error);
     res.status(500).json({ message: 'Error saving event' });
   }
 });
@@ -222,21 +210,18 @@ app.post('/api/events', async (req, res) => {
 // POST a batch of new events
 app.post('/api/events/batch', async (req, res) => {
   try {
-    const newEvents = req.body; // Expecting an array of events
+    const newEvents = req.body.map(event => {
+      if (event.timeSlotId) event.timeSlotId = parseInt(event.timeSlotId, 10);
+      if (event.grade) event.grade = parseInt(event.grade, 10) || null;
+      return event;
+    });
+
     if (!Array.isArray(newEvents)) {
       return res.status(400).json({ message: 'Request body must be an array of events.' });
     }
 
-    const createdEvents = [];
-    newEvents.forEach((event, index) => {
-      const newEventWithId = { ...event };
-      newEventWithId.id = Date.now() + index; // Simple unique ID for batch
-      db.data.schedules.push(newEventWithId);
-      createdEvents.push(newEventWithId);
-    });
-
-    await db.write();
-    res.status(201).json(createdEvents);
+    const result = await db.collection('schedules').insertMany(newEvents);
+    res.status(201).json(result.ops);
   } catch (error) {
     res.status(500).json({ message: 'Error saving batch of events' });
   }
@@ -245,17 +230,43 @@ app.post('/api/events/batch', async (req, res) => {
 // PUT (update) an event
 app.put('/api/events/:id', async (req, res) => {
     try {
-        const eventId = parseInt(req.params.id, 10);
-        const eventIndex = db.data.schedules.findIndex(e => e.id === eventId);
+        const eventId = req.params.id;
+        const updatedEvent = req.body;
+        const { roomId, day, timeSlotId, grade, teacherId } = updatedEvent;
 
-        if (eventIndex === -1) {
+        // --- Room Conflict Validation ---
+        if (roomId && timeSlotId) {
+            const isRoomAvailable = await checkRoomAvailability(roomId, day, timeSlotId, eventId);
+            if (!isRoomAvailable) {
+                return res.status(400).json({ message: 'Room is already booked for this time slot.' });
+            }
+        }
+
+        // --- Teacher Conflict Validation ---
+        if (teacherId && timeSlotId) {
+            const conflictingEvent = await checkTeacherConflict(teacherId, day, timeSlotId, eventId);
+            if (conflictingEvent && conflictingEvent.roomId !== roomId) {
+                return res.status(400).json({ message: 'This teacher is already scheduled in a different room at this time.' });
+            }
+        }
+        
+        const payload = { ...updatedEvent };
+        // Ensure numeric types before saving
+        if (payload.timeSlotId) payload.timeSlotId = parseInt(payload.timeSlotId, 10);
+        if (payload.grade) payload.grade = parseInt(payload.grade, 10) || null;
+
+        const result = await db.collection('schedules').updateOne(
+            { _id: new ObjectId(eventId) },
+            { $set: payload }
+        );
+
+        if (result.matchedCount === 0) {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        db.data.schedules[eventIndex] = { ...db.data.schedules[eventIndex], ...req.body };
-        await db.write();
-        res.json(db.data.schedules[eventIndex]);
+        res.json({ ...payload, _id: eventId });
     } catch (error) {
+        console.error(`[PUT /api/events/${req.params.id}] Error updating event:`, error);
         res.status(500).json({ message: 'Error updating event' });
     }
 });
@@ -264,15 +275,13 @@ app.put('/api/events/:id', async (req, res) => {
 // DELETE an event
 app.delete('/api/events/:id', async (req, res) => {
     try {
-        const eventId = parseInt(req.params.id, 10);
-        const initialLength = db.data.schedules.length;
-        db.data.schedules = db.data.schedules.filter(e => e.id !== eventId);
+        const eventId = req.params.id;
+        const result = await db.collection('schedules').deleteOne({ _id: new ObjectId(eventId) });
 
-        if (db.data.schedules.length === initialLength) {
+        if (result.deletedCount === 0) {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        await db.write();
         res.status(204).send(); // No Content
     } catch (error) {
         res.status(500).json({ message: 'Error deleting event' });
@@ -286,11 +295,9 @@ app.post('/api/subjects', async (req, res) => {
     if (!name || !color) {
       return res.status(400).json({ message: 'Name and color are required' });
     }
-    const newId = Math.max(0, ...db.data.subjects.map(s => s.id)) + 1;
-    const newSubject = { id: newId, name, color, order: order !== undefined ? order : newId };
-    db.data.subjects.push(newSubject);
-    await db.write();
-    res.status(201).json(newSubject);
+    const newSubject = { name, color, order };
+    const result = await db.collection('subjects').insertOne(newSubject);
+    res.status(201).json({ ...newSubject, _id: result.insertedId });
   } catch (error) {
     res.status(500).json({ message: 'Error saving subject' });
   }
@@ -299,19 +306,17 @@ app.post('/api/subjects', async (req, res) => {
 // PUT (update) a subject
 app.put('/api/subjects/:id', async (req, res) => {
   try {
-    const subjectId = parseInt(req.params.id, 10);
+    const subjectId = req.params.id;
     const { name, color, order } = req.body;
-    const subjectIndex = db.data.subjects.findIndex(s => s.id === subjectId);
+    const result = await db.collection('subjects').updateOne(
+        { _id: new ObjectId(subjectId) },
+        { $set: { name, color, order } }
+    );
 
-    if (subjectIndex === -1) {
+    if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Subject not found' });
     }
-    if (name) db.data.subjects[subjectIndex].name = name;
-    if (color) db.data.subjects[subjectIndex].color = color;
-    if (order !== undefined) db.data.subjects[subjectIndex].order = order;
-
-    await db.write();
-    res.json(db.data.subjects[subjectIndex]);
+    res.json({ _id: subjectId, name, color, order });
   } catch (error) {
     res.status(500).json({ message: 'Error updating subject' });
   }
@@ -320,22 +325,20 @@ app.put('/api/subjects/:id', async (req, res) => {
 // DELETE a subject
 app.delete('/api/subjects/:id', async (req, res) => {
   try {
-    const subjectId = parseInt(req.params.id, 10);
+    const subjectId = req.params.id;
 
     // Check if the subject is in use
-    const isInUse = db.data.schedules.some(schedule => schedule.subjectId === subjectId);
+    const isInUse = await db.collection('schedules').findOne({ subjectId: subjectId });
     if (isInUse) {
       return res.status(400).json({ message: 'Cannot delete subject because it is currently in use in the schedule.' });
     }
 
-    const initialLength = db.data.subjects.length;
-    db.data.subjects = db.data.subjects.filter(s => s.id !== subjectId);
+    const result = await db.collection('subjects').deleteOne({ _id: new ObjectId(subjectId) });
 
-    if (db.data.subjects.length === initialLength) {
+    if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Subject not found' });
     }
 
-    await db.write();
     res.status(204).send(); // No Content
   } catch (error) {
     res.status(500).json({ message: 'Error deleting subject' });
@@ -351,12 +354,9 @@ app.post('/api/teachers', async (req, res) => {
     if (!name) {
       return res.status(400).json({ message: 'Name is required' });
     }
-    // A simple way to generate a new ID, suitable for this app's scale
-    const newId = name.replace(/\s+/g, '').toUpperCase() + Date.now().toString().slice(-4);
-    const newTeacher = { id: newId, name, order: order !== undefined ? order : db.data.teachers.length, email: email || '' };
-    db.data.teachers.push(newTeacher);
-    await db.write();
-    res.status(201).json(newTeacher);
+    const newTeacher = { name, order, email: email || '' };
+    const result = await db.collection('teachers').insertOne(newTeacher);
+    res.status(201).json({ ...newTeacher, _id: result.insertedId });
   } catch (error) {
     console.error('Error saving teacher:', error);
     res.status(500).json({ message: 'Error saving teacher' });
@@ -368,17 +368,15 @@ app.put('/api/teachers/:id', async (req, res) => {
   try {
     const teacherId = req.params.id;
     const { name, order, email } = req.body;
-    const teacherIndex = db.data.teachers.findIndex(t => t.id === teacherId);
+    const result = await db.collection('teachers').updateOne(
+        { _id: new ObjectId(teacherId) },
+        { $set: { name, order, email } }
+    );
 
-    if (teacherIndex === -1) {
+    if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Teacher not found' });
     }
-    if (name) db.data.teachers[teacherIndex].name = name;
-    if (order !== undefined) db.data.teachers[teacherIndex].order = order;
-    if (email !== undefined) db.data.teachers[teacherIndex].email = email;
-
-    await db.write();
-    res.json(db.data.teachers[teacherIndex]);
+    res.json({ _id: teacherId, name, order, email });
   } catch (error) {
     console.error('Error updating teacher:', error);
     res.status(500).json({ message: 'Error updating teacher' });
@@ -391,19 +389,17 @@ app.delete('/api/teachers/:id', async (req, res) => {
     const teacherId = req.params.id;
 
     // Check if the teacher is in use
-    const isInUse = db.data.schedules.some(schedule => schedule.teacherId === teacherId);
+    const isInUse = await db.collection('schedules').findOne({ teacherId: teacherId });
     if (isInUse) {
       return res.status(400).json({ message: 'Cannot delete teacher because they are currently assigned to a schedule.' });
     }
 
-    const initialLength = db.data.teachers.length;
-    db.data.teachers = db.data.teachers.filter(t => t.id !== teacherId);
+    const result = await db.collection('teachers').deleteOne({ _id: new ObjectId(teacherId) });
 
-    if (db.data.teachers.length === initialLength) {
+    if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Teacher not found' });
     }
 
-    await db.write();
     res.status(204).send(); // No Content
   } catch (error) {
     console.error('Error deleting teacher:', error);
@@ -420,11 +416,9 @@ app.post('/api/rooms', async (req, res) => {
     if (!name) {
       return res.status(400).json({ message: 'Name is required' });
     }
-    const newId = Math.max(0, ...db.data.rooms.map(r => r.id)) + 1;
-    const newRoom = { id: newId, name, order: order !== undefined ? order : db.data.rooms.length };
-    db.data.rooms.push(newRoom);
-    await db.write();
-    res.status(201).json(newRoom);
+    const newRoom = { name, order };
+    const result = await db.collection('rooms').insertOne(newRoom);
+    res.status(201).json({ ...newRoom, _id: result.insertedId });
   } catch (error) {
     console.error('Error saving room:', error);
     res.status(500).json({ message: 'Error saving room' });
@@ -434,18 +428,17 @@ app.post('/api/rooms', async (req, res) => {
 // PUT (update) a room
 app.put('/api/rooms/:id', async (req, res) => {
   try {
-    const roomId = parseInt(req.params.id, 10);
+    const roomId = req.params.id;
     const { name, order } = req.body;
-    const roomIndex = db.data.rooms.findIndex(r => r.id === roomId);
+    const result = await db.collection('rooms').updateOne(
+        { _id: new ObjectId(roomId) },
+        { $set: { name, order } }
+    );
 
-    if (roomIndex === -1) {
+    if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Room not found' });
     }
-    if (name) db.data.rooms[roomIndex].name = name;
-    if (order !== undefined) db.data.rooms[roomIndex].order = order;
-
-    await db.write();
-    res.json(db.data.rooms[roomIndex]);
+    res.json({ _id: roomId, name, order });
   } catch (error) {
     console.error('Error updating room:', error);
     res.status(500).json({ message: 'Error updating room' });
@@ -455,21 +448,19 @@ app.put('/api/rooms/:id', async (req, res) => {
 // DELETE a room
 app.delete('/api/rooms/:id', async (req, res) => {
   try {
-    const roomId = parseInt(req.params.id, 10);
+    const roomId = req.params.id;
 
-    const isInUse = db.data.schedules.some(schedule => schedule.roomId === roomId);
+    const isInUse = await db.collection('schedules').findOne({ roomId: roomId });
     if (isInUse) {
       return res.status(400).json({ message: 'Cannot delete room because it is currently in use in the schedule.' });
     }
 
-    const initialLength = db.data.rooms.length;
-    db.data.rooms = db.data.rooms.filter(r => r.id !== roomId);
+    const result = await db.collection('rooms').deleteOne({ _id: new ObjectId(roomId) });
 
-    if (db.data.rooms.length === initialLength) {
+    if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    await db.write();
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting room:', error);
@@ -486,18 +477,7 @@ app.delete('/api/schedules/by-subject-and-day', async (req, res) => {
       return res.status(400).json({ message: 'subjectId and day are required' });
     }
 
-    const initialLength = db.data.schedules.length;
-    db.data.schedules = db.data.schedules.filter(event => {
-      // Keep the event if it does NOT match the subjectId and day to be deleted
-      return !(event.subjectId === subjectId && event.day === day);
-    });
-
-    if (db.data.schedules.length === initialLength) {
-      // This isn't necessarily an error, could just mean no entries were found to delete
-      return res.status(200).json({ message: 'No matching schedule entries found to delete.' });
-    }
-
-    await db.write();
+    await db.collection('schedules').deleteMany({ subjectId: subjectId, day: day });
     res.status(200).json({ message: 'Schedule entries deleted successfully.' });
   } catch (error) {
     console.error('Error deleting schedule entries by subject and day:', error);
@@ -513,17 +493,7 @@ app.delete('/api/schedules/by-teacher-and-day', async (req, res) => {
       return res.status(400).json({ message: 'teacherId and day are required' });
     }
 
-    const initialLength = db.data.schedules.length;
-    db.data.schedules = db.data.schedules.filter(event => {
-      // Keep the event if it does NOT match the teacherId and day to be deleted
-      return !(event.teacherId === teacherId && event.day === day);
-    });
-
-    if (db.data.schedules.length === initialLength) {
-      return res.status(200).json({ message: 'No matching schedule entries found to delete.' });
-    }
-
-    await db.write();
+    await db.collection('schedules').deleteMany({ teacherId: teacherId, day: day });
     res.status(200).json({ message: 'Schedule entries deleted successfully.' });
   } catch (error) {
     console.error('Error deleting schedule entries by teacher and day:', error);
@@ -539,16 +509,7 @@ app.delete('/api/schedules/by-room-and-day', async (req, res) => {
       return res.status(400).json({ message: 'roomId and day are required' });
     }
 
-    const initialLength = db.data.schedules.length;
-    db.data.schedules = db.data.schedules.filter(event => {
-      return !(event.roomId === roomId && event.day === day);
-    });
-
-    if (db.data.schedules.length === initialLength) {
-      return res.status(200).json({ message: 'No matching schedule entries found to delete.' });
-    }
-
-    await db.write();
+    await db.collection('schedules').deleteMany({ roomId: roomId, day: day });
     res.status(200).json({ message: 'Schedule entries deleted successfully.' });
   } catch (error) {
     console.error('Error deleting schedule entries by room and day:', error);
@@ -564,14 +525,7 @@ app.delete('/api/schedules/by-day', async (req, res) => {
       return res.status(400).json({ message: 'Day is required' });
     }
 
-    const initialLength = db.data.schedules.length;
-    db.data.schedules = db.data.schedules.filter(event => event.day !== day);
-
-    if (db.data.schedules.length === initialLength) {
-      return res.status(200).json({ message: 'No matching schedule entries found to delete for the specified day.' });
-    }
-
-    await db.write();
+    await db.collection('schedules').deleteMany({ day: day });
     res.status(200).json({ message: 'All schedule entries for the day were deleted successfully.' });
   } catch (error) {
     console.error('Error deleting schedule entries for day:', error);
@@ -608,7 +562,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
     if (!email || !email.endsWith('@krumbach.school')) {
       // NOTE: You might want to create a dedicated error page on your frontend
-      return res.redirect('http://localhost:8080?error=Invalid%20domain');
+      return res.redirect('${FRONTEND_URL}?error=Invalid%20domain');
     }
 
     const credentialsFilePath = join(__dirname, 'editor-credentials.txt');
@@ -623,11 +577,26 @@ app.get('/api/auth/google/callback', async (req, res) => {
     // In a real production app, you would use a more secure method like JWTs and cookies.
     // The frontend URL is hardcoded here. You may need to change it depending on where you run your frontend.
     const userParam = encodeURIComponent(JSON.stringify(user));
-    res.redirect(`http://localhost:8080?user=${userParam}`);
+    res.redirect(`${FRONTEND_URL}?user=${userParam}`);
 
   } catch (error) {
     console.error('Google Auth Callback Error:', error);
-    res.redirect('http://localhost:8080?error=Authentication%20failed');
+    res.redirect(`${FRONTEND_URL}?error=Authentication%20failed`);
+  }
+});
+
+// --- Frontend Serving ---
+// Serve static files from the client directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use(express.static(join(__dirname, '../client')));
+
+// Catch-all middleware to serve the frontend
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    res.sendFile(join(__dirname, '../client', 'index.html'));
+  } else {
+    next();
   }
 });
 
