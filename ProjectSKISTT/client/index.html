@@ -127,7 +127,7 @@
       const [isModalOpen, setModalOpen] = React.useState(false);
       const [editingEvent, setEditingEvent] = React.useState(null);
       const [newEvent, setNewEvent] = React.useState({
-        grade: '', grades: [], timeSlotId: '', subjectId: '', teacherId: '', roomId: '',
+        grade: '', grades: [], timeSlotId: '', timeSlotIds: [], subjectId: '', teacherId: '', roomId: '',
         color: '#ffffff', customSubject: '', customTeacher: '', customRoom: ''
       });
       const [isExportModalOpen, setExportModalOpen] = React.useState(false);
@@ -395,11 +395,11 @@
                                                         if (!isEditor) return;
                                                         if (event) { 
                                                             setEditingEvent(event); 
-                                                            setNewEvent({ ...event, grades: [event.grade] }); 
+                                                            setNewEvent({ ...event, grades: [event.grade], timeSlotIds: [event.timeSlotId] }); 
                                                         } 
                                                         else { 
                                                             setEditingEvent(null); 
-                                                            setNewEvent({ grade: '', grades: [], timeSlotId: '', subjectId: '', teacherId: '', roomId: '', color: '#ffffff', customSubject: '', customTeacher: '', customRoom: '' }); 
+                                                            setNewEvent({ grade: '', grades: [], timeSlotId: '', timeSlotIds: [], subjectId: '', teacherId: '', roomId: '', color: '#ffffff', customSubject: '', customTeacher: '', customRoom: '' }); 
                                                         }
                                                         setModalOpen(true);
                                                       };
@@ -420,9 +420,14 @@
 
                                                       const handleCreate = async () => {
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
+                                                        const timeSlotsToProcess = newEvent.timeSlotIds && newEvent.timeSlotIds.length > 0 ? newEvent.timeSlotIds : (newEvent.timeSlotId ? [newEvent.timeSlotId] : []);
                                                         
                                                         if (gradesToProcess.length === 0) {
                                                             alert('Please select at least one grade.');
+                                                            return;
+                                                        }
+                                                        if (timeSlotsToProcess.length === 0) {
+                                                            alert('Please select at least one time slot.');
                                                             return;
                                                         }
 
@@ -442,48 +447,50 @@
 
                                                         try {
                                                             for (const grade of gradesToProcess) {
-                                                                const payload = { ...basePayload, grade: grade };
-                                                                delete payload.grades; // Don't send the array
+                                                                for (const timeSlotId of timeSlotsToProcess) {
+                                                                    const payload = { ...basePayload, grade: grade, timeSlotId: timeSlotId };
+                                                                    delete payload.grades; // Don't send the array
+                                                                    delete payload.timeSlotIds; // Don't send the array
+                                                                    
+                                                                    // Pre-flight conflict check (optional, but good for UX)
+                                                                    if (payload.roomId) {
+                                                                        const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
+                                                                        if (conflictingEvent) {
+                                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
+                                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
                                                                 
-                                                                // Pre-flight conflict check (optional, but good for UX)
-                                                                // We rely on backend validation mostly, but keeping the "Subject mismatch" check is useful
-                                                                if (payload.roomId) {
-                                                                    const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
-                                                                    if (conflictingEvent) {
-                                                                        const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
-                                                                        const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
-                                                            
-                                                                        if (existingSubjectName !== newSubjectName) {
-                                                                            throw new Error(`Room conflict for Grade ${grade}: This room is already booked for this time slot with a different subject.`);
+                                                                            if (existingSubjectName !== newSubjectName) {
+                                                                                throw new Error(`Room conflict for Grade ${grade} at ${timeSlots.find(t => t.id === timeSlotId)?.time}: This room is already booked for this time slot with a different subject.`);
+                                                                            }
                                                                         }
                                                                     }
-                                                                }
 
-                                                                if (payload.teacherId) {
-                                                                    const teacherConflictEvent = schedules.find(event => 
-                                                                        event.day === payload.day && 
-                                                                        event.timeSlotId === payload.timeSlotId && 
-                                                                        event.teacherId === payload.teacherId
-                                                                    );
-                                                                    if (teacherConflictEvent) {
-                                                                        const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
-                                                                        const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
-                                                                        // Allow same teacher if subject is same (combined class)
-                                                                        if (existingSubjectName !== newSubjectName) {
-                                                                            throw new Error(`Teacher conflict for Grade ${grade}: This teacher is already assigned to a different subject at this time.`);
+                                                                    if (payload.teacherId) {
+                                                                        const teacherConflictEvent = schedules.find(event => 
+                                                                            event.day === payload.day && 
+                                                                            event.timeSlotId === payload.timeSlotId && 
+                                                                            event.teacherId === payload.teacherId
+                                                                        );
+                                                                        if (teacherConflictEvent) {
+                                                                            const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
+                                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
+                                                                            // Allow same teacher if subject is same (combined class)
+                                                                            if (existingSubjectName !== newSubjectName) {
+                                                                                throw new Error(`Teacher conflict for Grade ${grade} at ${timeSlots.find(t => t.id === timeSlotId)?.time}: This teacher is already assigned to a different subject at this time.`);
+                                                                            }
                                                                         }
                                                                     }
-                                                                }
 
-                                                                const res = await fetch(`${API_URL}/events`, { 
-                                                                    method: 'POST', 
-                                                                    headers: { 'Content-Type': 'application/json' }, 
-                                                                    body: JSON.stringify(payload) 
-                                                                });
+                                                                    const res = await fetch(`${API_URL}/events`, { 
+                                                                        method: 'POST', 
+                                                                        headers: { 'Content-Type': 'application/json' }, 
+                                                                        body: JSON.stringify(payload) 
+                                                                    });
 
-                                                                if (!res.ok) {
-                                                                    const err = await res.json();
-                                                                    throw new Error(err.message || `An unexpected error occurred during creation for Grade ${grade}.`);
+                                                                    if (!res.ok) {
+                                                                        const err = await res.json();
+                                                                        throw new Error(err.message || `An unexpected error occurred during creation for Grade ${grade} at ${timeSlots.find(t => t.id === timeSlotId)?.time}.`);
+                                                                    }
                                                                 }
                                                             }
                                                             
@@ -497,9 +504,14 @@
 
                                                       const handleUpdate = async () => {
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
+                                                        const timeSlotsToProcess = newEvent.timeSlotIds && newEvent.timeSlotIds.length > 0 ? newEvent.timeSlotIds : (newEvent.timeSlotId ? [newEvent.timeSlotId] : []);
                                                         
                                                         if (gradesToProcess.length === 0) {
                                                             alert('Please select at least one grade.');
+                                                            return;
+                                                        }
+                                                        if (timeSlotsToProcess.length === 0) {
+                                                            alert('Please select at least one time slot.');
                                                             return;
                                                         }
 
@@ -509,14 +521,16 @@
                                                         if (basePayload.customRoom) { basePayload.roomId = null; }
                                                         
                                                         try {
-                                                            // 1. Update the existing event with the FIRST grade in the list
+                                                            // 1. Update the existing event with the FIRST combination in the list
                                                             const firstGrade = gradesToProcess[0];
-                                                            const updatePayload = { ...basePayload, grade: firstGrade };
+                                                            const firstTimeSlotId = timeSlotsToProcess[0];
+                                                            const updatePayload = { ...basePayload, grade: firstGrade, timeSlotId: firstTimeSlotId };
                                                             delete updatePayload.grades;
+                                                            delete updatePayload.timeSlotIds;
 
                                                             // Conflict Checks (for Update)
                                                             if (updatePayload.roomId) {
-                                                                const conflictingEvent = schedules.find(event => event.day === updatePayload.day && event.timeSlotId === updatePayload.timeSlotId && event.roomId === updatePayload.roomId && event.id !== editingEvent.id);
+                                                                const conflictingEvent = schedules.find(event => event.day === updatePayload.day && event.timeSlotId === updatePayload.timeSlotId && event.roomId === updatePayload.roomId && event._id !== editingEvent._id);
                                                                 if (conflictingEvent) {
                                                                     const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
                                                                     const newSubjectName = updatePayload.customSubject || subjects.find(s => s._id === updatePayload.subjectId)?.name;
@@ -530,7 +544,7 @@
                                                                     event.day === updatePayload.day && 
                                                                     event.timeSlotId === updatePayload.timeSlotId && 
                                                                     event.teacherId === updatePayload.teacherId &&
-                                                                    event.id !== editingEvent.id
+                                                                    event._id !== editingEvent._id
                                                                 );
                                                                 if (teacherConflictEvent) {
                                                                     const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
@@ -552,27 +566,30 @@
                                                                 throw new Error(err.message || 'An unexpected error occurred during update.');
                                                             }
 
-                                                            // 2. Create NEW events for any ADDITIONAL grades
-                                                            if (gradesToProcess.length > 1) {
-                                                                const additionalGrades = gradesToProcess.slice(1);
-                                                                for (const grade of additionalGrades) {
-                                                                    const createPayload = { ...basePayload, grade: grade };
-                                                                    delete createPayload.grades;
-                                                                    // We skip detailed conflict check here for brevity as it's likely a "copy" of the valid event
-                                                                    // But strict safety would repeat the checks.
-                                                                    
-                                                                    const createRes = await fetch(`${API_URL}/events`, { 
-                                                                        method: 'POST', 
-                                                                        headers: { 'Content-Type': 'application/json' }, 
-                                                                        body: JSON.stringify(createPayload) 
-                                                                    });
-                                                                    
-                                                                    if (!createRes.ok) {
-                                                                        const err = await createRes.json();
-                                                                        // Log error but maybe don't stop everything if one fails? 
-                                                                        // For now, throw to alert user.
-                                                                        throw new Error(err.message || `Failed to create additional event for Grade ${grade}`);
-                                                                    }
+                                                            // 2. Create NEW events for any ADDITIONAL combinations
+                                                            const allCombinations = [];
+                                                            for (const grade of gradesToProcess) {
+                                                                for (const timeSlotId of timeSlotsToProcess) {
+                                                                    // Skip the first combination as it was already used for update
+                                                                    if (grade === firstGrade && timeSlotId === firstTimeSlotId) continue;
+                                                                    allCombinations.push({ grade, timeSlotId });
+                                                                }
+                                                            }
+
+                                                            for (const combo of allCombinations) {
+                                                                const createPayload = { ...basePayload, grade: combo.grade, timeSlotId: combo.timeSlotId };
+                                                                delete createPayload.grades;
+                                                                delete createPayload.timeSlotIds;
+                                                                
+                                                                const createRes = await fetch(`${API_URL}/events`, { 
+                                                                    method: 'POST', 
+                                                                    headers: { 'Content-Type': 'application/json' }, 
+                                                                    body: JSON.stringify(createPayload) 
+                                                                });
+                                                                
+                                                                if (!createRes.ok) {
+                                                                    const err = await createRes.json();
+                                                                    throw new Error(err.message || `Failed to create additional event for Grade ${combo.grade} at ${timeSlots.find(t => t.id === combo.timeSlotId)?.time}`);
                                                                 }
                                                             }
 
@@ -1928,11 +1945,49 @@
                                     onChange={handleFormChange}
                                     renderValue={(selected) => selected.join(', ')}
                                 >
-                                    {grades.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+                                    {grades.map(g => (
+                                        <MenuItem 
+                                            key={g} 
+                                            value={g}
+                                            sx={{
+                                                backgroundColor: (newEvent.grades || []).includes(g) ? '#d3eafd' : 'transparent',
+                                                fontWeight: (newEvent.grades || []).includes(g) ? 'bold' : 'normal'
+                                            }}
+                                        >
+                                            {g}
+                                        </MenuItem>
+                                    ))}
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Time Slot</InputLabel><Select name="timeSlotId" value={newEvent.timeSlotId} label="Time Slot" onChange={handleFormChange}>{timeSlots.filter(t=>typeof t.id === 'number').map(t => <MenuItem key={t.id} value={t.id}>{t.time}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}>
+                            <FormControl fullWidth>
+                                <InputLabel>Time Slot</InputLabel>
+                                <Select 
+                                    name="timeSlotIds" 
+                                    multiple
+                                    value={newEvent.timeSlotIds || []} 
+                                    label="Time Slot" 
+                                    onChange={handleFormChange}
+                                    renderValue={(selected) => {
+                                        return selected.map(id => timeSlots.find(t => t.id === id)?.time).join(', ');
+                                    }}
+                                >
+                                    {timeSlots.filter(t => typeof t.id === 'number').map(t => (
+                                        <MenuItem 
+                                            key={t.id} 
+                                            value={t.id}
+                                            sx={{
+                                                backgroundColor: (newEvent.timeSlotIds || []).includes(t.id) ? '#d3eafd' : 'transparent',
+                                                fontWeight: (newEvent.timeSlotIds || []).includes(t.id) ? 'bold' : 'normal'
+                                            }}
+                                        >
+                                            {t.time}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
                         <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={12}><TextField label="Or Custom Event Name" name="customSubject" value={newEvent.customSubject} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
                         <Grid item xs={6}><FormControl fullWidth><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
