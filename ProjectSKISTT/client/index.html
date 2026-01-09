@@ -47,7 +47,8 @@
       Card,
       CardContent,
       Alert,
-      Menu
+      Menu,
+      useMediaQuery
     } = MaterialUI;
 
     const theme = createTheme({
@@ -180,11 +181,11 @@
 
                                                       const [selectedTeacher, setSelectedTeacher] = React.useState('');
                                                       const [selectedGrade, setSelectedGrade] = React.useState('');
-                                                      const [anchorEl, setAnchorEl] = React.useState(null);
-                                                      const isMenuOpen = Boolean(anchorEl);
-
-                                                      const handleMenuOpen = (event) => {
-                                                        setAnchorEl(event.currentTarget);
+                                                            const [anchorEl, setAnchorEl] = React.useState(null);
+                                                            const isMenuOpen = Boolean(anchorEl);
+                                                            const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+                                                      
+                                                            const handleMenuOpen = (event) => {                                                        setAnchorEl(event.currentTarget);
                                                       };
 
                                                       const handleMenuClose = () => {
@@ -1777,14 +1778,14 @@
             {isEditor ? (
               <>
                 {/* Full controls for editor */}
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-                    <FormControl sx={{ minWidth: 120 }}>
+                <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', mb: 2, gap: isMobile ? 2 : 0 }}>
+                    <FormControl sx={{ minWidth: 120, width: isMobile ? '100%' : 'auto' }}>
                       <InputLabel id="week-select-label" sx={{ fontSize: '1.2rem' }}>Week</InputLabel>
                       <Select labelId="week-select-label" value={getWeekNumber(currentDay)} label="Week" onChange={handleWeekChange} sx={{ fontWeight: 'bold' }}>
                         {getAllWeeks().map(week => (<MenuItem key={week} value={week} sx={{ textAlign: 'center' }}>{week}</MenuItem>))}
                       </Select>
                     </FormControl>
-                    <FormControl sx={{ minWidth: 150, ml: 2, backgroundColor: 'white', borderRadius: '4px' }}>
+                    <FormControl sx={{ minWidth: 150, ml: isMobile ? 0 : 2, width: isMobile ? '100%' : 'auto', backgroundColor: 'white', borderRadius: '4px' }}>
                       <InputLabel id="teacher-filter-label">Filter by Teacher</InputLabel>
                       <Select
                         labelId="teacher-filter-label"
@@ -1804,7 +1805,7 @@
                         ))}
                       </Select>
                     </FormControl>
-                    <FormControl sx={{ minWidth: 150, ml: 2, backgroundColor: 'white', borderRadius: '4px' }}>
+                    <FormControl sx={{ minWidth: 150, ml: isMobile ? 0 : 2, width: isMobile ? '100%' : 'auto', backgroundColor: 'white', borderRadius: '4px' }}>
                       <InputLabel id="grade-filter-label">Filter by Grade</InputLabel>
                       <Select
                         labelId="grade-filter-label"
@@ -1828,7 +1829,7 @@
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
                     <IconButton onClick={handlePrevDay}><Icon>arrow_back_ios</Icon></IconButton>
                     {isPickingDate ? (
-                        <input type="date" ref={dateInputRef} style={{ fontSize: '1.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                        <input type="date" ref={dateInputRef} style={{ fontSize: isMobile ? '1.2rem' : '1.5rem', border: '1px solid #ccc', borderRadius: '4px', maxWidth: '160px' }}
                           value={currentDay.toISOString().split('T')[0]}
                           onChange={(e) => {
                             if (e.target.value) { const selectedDate = new Date(e.target.value + 'T12:00:00'); setCurrentDay(selectedDate); setInitialDay(selectedDate); }
@@ -1837,7 +1838,7 @@
                           onBlur={() => setIsPickingDate(false)}
                         />
                     ) : (
-                        <Typography variant="h5" onClick={() => setIsPickingDate(true)} sx={{ cursor: 'pointer', p: 1, '&:hover': { textDecoration: 'underline' } }}>
+                        <Typography variant={isMobile ? "h6" : "h5"} onClick={() => setIsPickingDate(true)} sx={{ cursor: 'pointer', p: 1, '&:hover': { textDecoration: 'underline' }, textAlign: 'center' }}>
                           {selectedTeacher || selectedGrade ? `Week of ${formatDate(currentDay)}` : `${dayFormatter.format(currentDay)} - ${formatDate(currentDay)}`}
                         </Typography>
                     )}
@@ -1949,11 +1950,11 @@
             )}
             {isEditor && <>
               <Modal open={isModalOpen} onClose={handleCloseModal}>
-                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: isMobile ? '90%' : 600, maxHeight: isMobile ? '90vh' : 'auto', overflowY: isMobile ? 'auto' : 'visible', bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
                     <Typography variant="h6" component="h2" sx={{mb: 2}}>{editingEvent ? 'Edit Schedule Event' : 'Add New Schedule Event'}</Typography>
                     {submitError && <Alert severity="error" sx={{ mb: 2 }}>{submitError}</Alert>}
                     <Grid container spacing={2}>
-                        <Grid item xs={6}>
+                        <Grid item xs={12} sm={6}>
                             <FormControl fullWidth>
                                 <InputLabel>Grade</InputLabel>
                                 <Select 
@@ -1979,7 +1980,7 @@
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid item xs={12} sm={6}>
                             <FormControl fullWidth>
                                 <InputLabel>Time Slot</InputLabel>
                                 <Select 
@@ -2009,10 +2010,10 @@
                         </Grid>
                         <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={12}><TextField label="Or Custom Event Name" name="customSubject" value={newEvent.customSubject} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth error={!!formErrors.teacherId}><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
-                        <Grid item xs={6}><TextField label="Or Custom Teacher" name="customTeacher" value={newEvent.customTeacher} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth error={!!formErrors.roomId}><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
-                        <Grid item xs={6}><TextField label="Or Custom Room" name="customRoom" value={newEvent.customRoom} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
+                        <Grid item xs={12} sm={6}><FormControl fullWidth error={!!formErrors.teacherId}><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12} sm={6}><TextField label="Or Custom Teacher" name="customTeacher" value={newEvent.customTeacher} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
+                        <Grid item xs={12} sm={6}><FormControl fullWidth error={!!formErrors.roomId}><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12} sm={6}><TextField label="Or Custom Room" name="customRoom" value={newEvent.customRoom} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
                         <Grid item xs={12}><TextField label="Custom Color" type="color" name="color" value={newEvent.color} onChange={handleFormChange} fullWidth/></Grid>
                     </Grid>
                     <Box sx={{mt: 3, display: 'flex', justifyContent: 'space-between'}}>
