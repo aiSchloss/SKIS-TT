@@ -130,6 +130,8 @@
         grade: '', grades: [], timeSlotId: '', timeSlotIds: [], subjectId: '', teacherId: '', roomId: '',
         color: '#ffffff', customSubject: '', customTeacher: '', customRoom: ''
       });
+      const [formErrors, setFormErrors] = React.useState({});
+      const [submitError, setSubmitError] = React.useState('');
       const [isExportModalOpen, setExportModalOpen] = React.useState(false);
       const [exportWeek, setExportWeek] = React.useState('');
       const [exportDays, setExportDays] = React.useState({ Monday: false, Tuesday: false, Wednesday: false, Thursday: false, Friday: false });
@@ -393,6 +395,8 @@
                                                       // MODAL & EVENT HANDLERS
                                                       const handleOpenModal = (event = null) => {
                                                         if (!isEditor) return;
+                                                        setFormErrors({});
+                                                        setSubmitError('');
                                                         if (event) { 
                                                             setEditingEvent(event); 
                                                             setNewEvent({ ...event, grades: [event.grade], timeSlotIds: [event.timeSlotId] }); 
@@ -419,6 +423,8 @@
                                                       const handleSubmit = () => { if (editingEvent) { handleUpdate(); } else { handleCreate(); } };
 
                                                       const handleCreate = async () => {
+                                                        setSubmitError('');
+                                                        setFormErrors({});
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
                                                         const timeSlotsToProcess = newEvent.timeSlotIds && newEvent.timeSlotIds.length > 0 ? newEvent.timeSlotIds : (newEvent.timeSlotId ? [newEvent.timeSlotId] : []);
                                                         
@@ -498,11 +504,18 @@
                                                             handleCloseModal();
                                                         } catch (err) {
                                                             console.error("Failed to save event", err);
-                                                            alert(`Error: ${err.message}`);
+                                                            const msg = err.message;
+                                                            setSubmitError(msg);
+                                                            const errors = {};
+                                                            if (msg.toLowerCase().includes("room")) errors.roomId = true;
+                                                            if (msg.toLowerCase().includes("teacher")) errors.teacherId = true;
+                                                            setFormErrors(errors);
                                                         }
                                                       };
 
                                                       const handleUpdate = async () => {
+                                                        setSubmitError('');
+                                                        setFormErrors({});
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
                                                         const timeSlotsToProcess = newEvent.timeSlotIds && newEvent.timeSlotIds.length > 0 ? newEvent.timeSlotIds : (newEvent.timeSlotId ? [newEvent.timeSlotId] : []);
                                                         
@@ -598,7 +611,12 @@
 
                                                         } catch (err) {
                                                             console.error("Failed to update event", err);
-                                                            alert(`Error: ${err.message}`);
+                                                            const msg = err.message;
+                                                            setSubmitError(msg);
+                                                            const errors = {};
+                                                            if (msg.toLowerCase().includes("room")) errors.roomId = true;
+                                                            if (msg.toLowerCase().includes("teacher")) errors.teacherId = true;
+                                                            setFormErrors(errors);
                                                         }
                                                       };
 
@@ -1933,6 +1951,7 @@
               <Modal open={isModalOpen} onClose={handleCloseModal}>
                 <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
                     <Typography variant="h6" component="h2" sx={{mb: 2}}>{editingEvent ? 'Edit Schedule Event' : 'Add New Schedule Event'}</Typography>
+                    {submitError && <Alert severity="error" sx={{ mb: 2 }}>{submitError}</Alert>}
                     <Grid container spacing={2}>
                         <Grid item xs={6}>
                             <FormControl fullWidth>
@@ -1990,9 +2009,9 @@
                         </Grid>
                         <Grid item xs={12}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select name="subjectId" value={newEvent.subjectId} label="Subject" onChange={handleFormChange}>{subjects.map(s => <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={12}><TextField label="Or Custom Event Name" name="customSubject" value={newEvent.customSubject} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth error={!!formErrors.teacherId}><InputLabel>Teacher</InputLabel><Select name="teacherId" value={newEvent.teacherId} label="Teacher" onChange={handleFormChange}>{teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><TextField label="Or Custom Teacher" name="customTeacher" value={newEvent.customTeacher} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
-                        <Grid item xs={6}><FormControl fullWidth><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={6}><FormControl fullWidth error={!!formErrors.roomId}><InputLabel>Room</InputLabel><Select name="roomId" value={newEvent.roomId} label="Room" onChange={handleFormChange}>{rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}</Select></FormControl></Grid>
                         <Grid item xs={6}><TextField label="Or Custom Room" name="customRoom" value={newEvent.customRoom} onChange={handleFormChange} fullWidth variant="outlined"/></Grid>
                         <Grid item xs={12}><TextField label="Custom Color" type="color" name="color" value={newEvent.color} onChange={handleFormChange} fullWidth/></Grid>
                     </Grid>
