@@ -1109,9 +1109,9 @@
                                                         const changes = [];
 
                                                         // Identify deletions
-                                                        const editingIds = new Set(editingSubjects.map(s => s.id));
+                                                        const editingIds = new Set(editingSubjects.map(s => s._id));
                                                         originalSubjects.forEach(original => {
-                                                          if (original.id && !editingIds.has(original.id)) {
+                                                          if (original._id && !editingIds.has(original._id)) {
                                                             changes.push(fetch(`${API_URL}/subjects/${original._id}`, {
                                                               method: 'DELETE'
                                                             }));
@@ -1178,9 +1178,9 @@
                                                         const originalTeachers = teachers;
                                                         const changes = [];
 
-                                                        const editingIds = new Set(editingTeachers.map(t => t.id));
+                                                        const editingIds = new Set(editingTeachers.map(t => t._id));
                                                         originalTeachers.forEach(original => {
-                                                          if (original.id && !editingIds.has(original.id)) {
+                                                          if (original._id && !editingIds.has(original._id)) {
                                                             changes.push(fetch(`${API_URL}/teachers/${original._id}`, { method: 'DELETE' }));
                                                           }
                                                         });
@@ -1283,9 +1283,9 @@
                                                         const originalRooms = rooms;
                                                         const changes = [];
 
-                                                        const editingIds = new Set(editingRooms.map(r => r.id));
+                                                        const editingIds = new Set(editingRooms.map(r => r._id));
                                                         originalRooms.forEach(original => {
-                                                          if (original.id && !editingIds.has(original.id)) {
+                                                          if (original._id && !editingIds.has(original._id)) {
                                                             changes.push(fetch(`${API_URL}/rooms/${original._id}`, { method: 'DELETE' }));
                                                           }
                                                         });
