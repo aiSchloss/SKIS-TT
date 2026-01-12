@@ -149,10 +149,10 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/events', async (req, res) => {
   try {
     const newEvent = req.body;
-    const { roomId, day, timeSlotId, grade, teacherId } = newEvent;
+    const { roomId, day, timeSlotId, grade, teacherId, force } = newEvent;
 
     // --- Comprehensive Conflict Validation ---
-    if (timeSlotId && (teacherId || roomId)) {
+    if (!force && timeSlotId && (teacherId || roomId)) {
         const timeSlotEvents = await db.collection('schedules').find({
             day: day,
             timeSlotId: parseInt(timeSlotId, 10)
@@ -182,6 +182,7 @@ app.post('/api/events', async (req, res) => {
     // Ensure numeric types before saving
     if (newEvent.timeSlotId) newEvent.timeSlotId = parseInt(newEvent.timeSlotId, 10);
     if (newEvent.grade) newEvent.grade = parseInt(newEvent.grade, 10) || null; // Store as null if not a valid number
+    if (newEvent.force !== undefined) delete newEvent.force; // Don't save the force flag to DB
 
     const result = await db.collection('schedules').insertOne(newEvent);
     res.status(201).json({ ...newEvent, _id: result.insertedId });
@@ -216,10 +217,10 @@ app.put('/api/events/:id', async (req, res) => {
     try {
         const eventId = req.params.id;
         const updatedEvent = req.body;
-        const { roomId, day, timeSlotId, grade, teacherId } = updatedEvent;
+        const { roomId, day, timeSlotId, grade, teacherId, force } = updatedEvent;
 
         // --- Comprehensive Conflict Validation ---
-        if (timeSlotId && (teacherId || roomId)) {
+        if (!force && timeSlotId && (teacherId || roomId)) {
             const timeSlotEvents = await db.collection('schedules').find({
                 _id: { $ne: new ObjectId(eventId) }, // Exclude the event being updated
                 day: day,
@@ -251,6 +252,7 @@ app.put('/api/events/:id', async (req, res) => {
         // Ensure numeric types before saving
         if (payload.timeSlotId) payload.timeSlotId = parseInt(payload.timeSlotId, 10);
         if (payload.grade) payload.grade = parseInt(payload.grade, 10) || null;
+        if (payload.force !== undefined) delete payload.force;
         
         // The frontend might send back the _id in the payload, which is immutable.
         // It's safer to remove it before the update operation.

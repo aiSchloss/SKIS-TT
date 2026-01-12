@@ -421,11 +421,11 @@
                                                         setNewEvent(updatedEvent); 
                                                       };
 
-                                                      const handleSubmit = () => { if (editingEvent) { handleUpdate(); } else { handleCreate(); } };
+                                                      const handleSubmit = () => { if (editingEvent) { handleUpdate(false); } else { handleCreate(false); } };
 
-                                                      const handleCreate = async () => {
+                                                      const handleCreate = async (isForce = false) => {
                                                         setSubmitError('');
-                                                        setFormErrors({});
+                                                        if (!isForce) setFormErrors({});
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
                                                         const timeSlotsToProcess = newEvent.timeSlotIds && newEvent.timeSlotIds.length > 0 ? newEvent.timeSlotIds : (newEvent.timeSlotId ? [newEvent.timeSlotId] : []);
                                                         
@@ -451,6 +451,10 @@
                                                             const selectedSubject = subjects.find(s => s._id === basePayload.subjectId); 
                                                             if (selectedSubject) { basePayload.color = selectedSubject.color; } 
                                                         }
+                                                        
+                                                        if (isForce) {
+                                                            basePayload.force = true;
+                                                        }
 
                                                         try {
                                                             for (const grade of gradesToProcess) {
@@ -460,30 +464,35 @@
                                                                     delete payload.timeSlotIds; // Don't send the array
                                                                     
                                                                     // Pre-flight conflict check (optional, but good for UX)
-                                                                    if (payload.roomId) {
-                                                                        const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
-                                                                        if (conflictingEvent) {
-                                                                            const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
-                                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
-                                                                
-                                                                            if (existingSubjectName !== newSubjectName) {
-                                                                                throw new Error(`Room conflict for Grade ${grade} at ${timeSlots.find(t => t.id === timeSlotId)?.time}: This room is already booked for this time slot with a different subject.`);
+                                                                    // We skip pre-flight check if forcing, or we can leave it as a "soft" check but the server is the ultimate authority.
+                                                                    // For simplicity, let's rely on server response for the "force" flow, 
+                                                                    // but keep this local check for immediate feedback if not forcing.
+                                                                    if (!isForce) {
+                                                                        if (payload.roomId) {
+                                                                            const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
+                                                                            if (conflictingEvent) {
+                                                                                const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
+                                                                                const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
+                                                                    
+                                                                                if (existingSubjectName !== newSubjectName) {
+                                                                                    throw new Error(`Room conflict for Grade ${grade} at ${timeSlots.find(t => t.id === timeSlotId)?.time}: This room is already booked for this time slot with a different subject.`);
+                                                                                }
                                                                             }
                                                                         }
-                                                                    }
 
-                                                                    if (payload.teacherId) {
-                                                                        const teacherConflictEvent = schedules.find(event => 
-                                                                            event.day === payload.day && 
-                                                                            event.timeSlotId === payload.timeSlotId && 
-                                                                            event.teacherId === payload.teacherId
-                                                                        );
-                                                                        if (teacherConflictEvent) {
-                                                                            const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
-                                                                            const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
-                                                                            // Allow same teacher if subject is same (combined class)
-                                                                            if (existingSubjectName !== newSubjectName) {
-                                                                                throw new Error(`Teacher conflict for Grade ${grade} at ${timeSlots.find(t => t.id === timeSlotId)?.time}: This teacher is already assigned to a different subject at this time.`);
+                                                                        if (payload.teacherId) {
+                                                                            const teacherConflictEvent = schedules.find(event => 
+                                                                                event.day === payload.day && 
+                                                                                event.timeSlotId === payload.timeSlotId && 
+                                                                                event.teacherId === payload.teacherId
+                                                                            );
+                                                                            if (teacherConflictEvent) {
+                                                                                const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
+                                                                                const newSubjectName = payload.customSubject || subjects.find(s => s._id === payload.subjectId)?.name;
+                                                                                // Allow same teacher if subject is same (combined class)
+                                                                                if (existingSubjectName !== newSubjectName) {
+                                                                                    throw new Error(`Teacher conflict for Grade ${grade} at ${timeSlots.find(t => t.id === timeSlotId)?.time}: This teacher is already assigned to a different subject at this time.`);
+                                                                                }
                                                                             }
                                                                         }
                                                                     }
@@ -506,6 +515,16 @@
                                                         } catch (err) {
                                                             console.error("Failed to save event", err);
                                                             const msg = err.message;
+                                                            
+                                                            const isConflict = msg.toLowerCase().includes("room") || msg.toLowerCase().includes("teacher") || msg.toLowerCase().includes("booked") || msg.toLowerCase().includes("assigned");
+                                                            
+                                                            if (isConflict && !isForce) {
+                                                                if (window.confirm(`${msg}\n\nDo you want to save this event anyway?`)) {
+                                                                    handleCreate(true); // Retry with force
+                                                                    return;
+                                                                }
+                                                            }
+
                                                             setSubmitError(msg);
                                                             const errors = {};
                                                             if (msg.toLowerCase().includes("room")) errors.roomId = true;
@@ -514,9 +533,9 @@
                                                         }
                                                       };
 
-                                                      const handleUpdate = async () => {
+                                                      const handleUpdate = async (isForce = false) => {
                                                         setSubmitError('');
-                                                        setFormErrors({});
+                                                        if (!isForce) setFormErrors({});
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
                                                         const timeSlotsToProcess = newEvent.timeSlotIds && newEvent.timeSlotIds.length > 0 ? newEvent.timeSlotIds : (newEvent.timeSlotId ? [newEvent.timeSlotId] : []);
                                                         
@@ -534,6 +553,10 @@
                                                         if (basePayload.customTeacher) { basePayload.teacherId = null; }
                                                         if (basePayload.customRoom) { basePayload.roomId = null; }
                                                         
+                                                        if (isForce) {
+                                                            basePayload.force = true;
+                                                        }
+
                                                         try {
                                                             // 1. Update the existing event with the FIRST combination in the list
                                                             const firstGrade = gradesToProcess[0];
@@ -543,28 +566,30 @@
                                                             delete updatePayload.timeSlotIds;
 
                                                             // Conflict Checks (for Update)
-                                                            if (updatePayload.roomId) {
-                                                                const conflictingEvent = schedules.find(event => event.day === updatePayload.day && event.timeSlotId === updatePayload.timeSlotId && event.roomId === updatePayload.roomId && event._id !== editingEvent._id);
-                                                                if (conflictingEvent) {
-                                                                    const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
-                                                                    const newSubjectName = updatePayload.customSubject || subjects.find(s => s._id === updatePayload.subjectId)?.name;
-                                                                    if (existingSubjectName !== newSubjectName) {
-                                                                        throw new Error('This room is already booked for this time slot with a different subject.');
+                                                            if (!isForce) {
+                                                                if (updatePayload.roomId) {
+                                                                    const conflictingEvent = schedules.find(event => event.day === updatePayload.day && event.timeSlotId === updatePayload.timeSlotId && event.roomId === updatePayload.roomId && event._id !== editingEvent._id);
+                                                                    if (conflictingEvent) {
+                                                                        const existingSubjectName = conflictingEvent.customSubject || subjects.find(s => s._id === conflictingEvent.subjectId)?.name;
+                                                                        const newSubjectName = updatePayload.customSubject || subjects.find(s => s._id === updatePayload.subjectId)?.name;
+                                                                        if (existingSubjectName !== newSubjectName) {
+                                                                            throw new Error('This room is already booked for this time slot with a different subject.');
+                                                                        }
                                                                     }
                                                                 }
-                                                            }
-                                                            if (updatePayload.teacherId) {
-                                                                const teacherConflictEvent = schedules.find(event => 
-                                                                    event.day === updatePayload.day && 
-                                                                    event.timeSlotId === updatePayload.timeSlotId && 
-                                                                    event.teacherId === updatePayload.teacherId &&
-                                                                    event._id !== editingEvent._id
-                                                                );
-                                                                if (teacherConflictEvent) {
-                                                                    const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
-                                                                    const newSubjectName = updatePayload.customSubject || subjects.find(s => s._id === updatePayload.subjectId)?.name;
-                                                                    if (existingSubjectName !== newSubjectName) {
-                                                                        throw new Error('This teacher is already assigned to a different subject at this time.');
+                                                                if (updatePayload.teacherId) {
+                                                                    const teacherConflictEvent = schedules.find(event => 
+                                                                        event.day === updatePayload.day && 
+                                                                        event.timeSlotId === updatePayload.timeSlotId && 
+                                                                        event.teacherId === updatePayload.teacherId &&
+                                                                        event._id !== editingEvent._id
+                                                                    );
+                                                                    if (teacherConflictEvent) {
+                                                                        const existingSubjectName = teacherConflictEvent.customSubject || subjects.find(s => s._id === teacherConflictEvent.subjectId)?.name;
+                                                                        const newSubjectName = updatePayload.customSubject || subjects.find(s => s._id === updatePayload.subjectId)?.name;
+                                                                        if (existingSubjectName !== newSubjectName) {
+                                                                            throw new Error('This teacher is already assigned to a different subject at this time.');
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -613,6 +638,16 @@
                                                         } catch (err) {
                                                             console.error("Failed to update event", err);
                                                             const msg = err.message;
+
+                                                            const isConflict = msg.toLowerCase().includes("room") || msg.toLowerCase().includes("teacher") || msg.toLowerCase().includes("booked") || msg.toLowerCase().includes("assigned");
+                                                            
+                                                            if (isConflict && !isForce) {
+                                                                if (window.confirm(`${msg}\n\nDo you want to save this event anyway?`)) {
+                                                                    handleUpdate(true); // Retry with force
+                                                                    return;
+                                                                }
+                                                            }
+
                                                             setSubmitError(msg);
                                                             const errors = {};
                                                             if (msg.toLowerCase().includes("room")) errors.roomId = true;
