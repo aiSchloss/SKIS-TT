@@ -53,7 +53,8 @@
       DialogTitle,
       DialogContent,
       DialogContentText,
-      DialogActions
+      DialogActions,
+      Backdrop
     } = MaterialUI;
 
     const theme = createTheme({
@@ -141,6 +142,7 @@
       const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
       const [confirmMessage, setConfirmMessage] = React.useState('');
       const [pendingAction, setPendingAction] = React.useState(null);
+      const [isSaving, setIsSaving] = React.useState(false);
       const [isExportModalOpen, setExportModalOpen] = React.useState(false);
       const [exportWeek, setExportWeek] = React.useState('');
       const [exportDays, setExportDays] = React.useState({ Monday: false, Tuesday: false, Wednesday: false, Thursday: false, Friday: false });
@@ -445,6 +447,7 @@
                                                       const handleSubmit = () => { if (editingEvent) { handleUpdate(false); } else { handleCreate(false); } };
 
                                                       const handleCreate = async (isForce = false) => {
+                                                        setIsSaving(true);
                                                         setSubmitError('');
                                                         if (!isForce) setFormErrors({});
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
@@ -452,10 +455,12 @@
                                                         
                                                         if (gradesToProcess.length === 0) {
                                                             alert('Please select at least one grade.');
+                                                            setIsSaving(false);
                                                             return;
                                                         }
                                                         if (timeSlotsToProcess.length === 0) {
                                                             alert('Please select at least one time slot.');
+                                                            setIsSaving(false);
                                                             return;
                                                         }
 
@@ -485,9 +490,6 @@
                                                                     delete payload.timeSlotIds; // Don't send the array
                                                                     
                                                                     // Pre-flight conflict check (optional, but good for UX)
-                                                                    // We skip pre-flight check if forcing, or we can leave it as a "soft" check but the server is the ultimate authority.
-                                                                    // For simplicity, let's rely on server response for the "force" flow, 
-                                                                    // but keep this local check for immediate feedback if not forcing.
                                                                     if (!isForce) {
                                                                         if (payload.roomId) {
                                                                             const conflictingEvent = schedules.find(event => event.day === payload.day && event.timeSlotId === payload.timeSlotId && event.roomId === payload.roomId);
@@ -543,18 +545,21 @@
                                                                 setConfirmMessage(msg);
                                                                 setPendingAction(() => () => handleCreate(true));
                                                                 setIsConfirmOpen(true);
-                                                                return;
+                                                                // Don't disable saving here, we are "done" with this attempt
+                                                            } else {
+                                                                setSubmitError(msg);
+                                                                const errors = {};
+                                                                if (msg.toLowerCase().includes("room")) errors.roomId = true;
+                                                                if (msg.toLowerCase().includes("teacher")) errors.teacherId = true;
+                                                                setFormErrors(errors);
                                                             }
-
-                                                            setSubmitError(msg);
-                                                            const errors = {};
-                                                            if (msg.toLowerCase().includes("room")) errors.roomId = true;
-                                                            if (msg.toLowerCase().includes("teacher")) errors.teacherId = true;
-                                                            setFormErrors(errors);
+                                                        } finally {
+                                                            setIsSaving(false);
                                                         }
                                                       };
 
                                                       const handleUpdate = async (isForce = false) => {
+                                                        setIsSaving(true);
                                                         setSubmitError('');
                                                         if (!isForce) setFormErrors({});
                                                         const gradesToProcess = newEvent.grades && newEvent.grades.length > 0 ? newEvent.grades : (newEvent.grade ? [newEvent.grade] : []);
@@ -562,10 +567,12 @@
                                                         
                                                         if (gradesToProcess.length === 0) {
                                                             alert('Please select at least one grade.');
+                                                            setIsSaving(false);
                                                             return;
                                                         }
                                                         if (timeSlotsToProcess.length === 0) {
                                                             alert('Please select at least one time slot.');
+                                                            setIsSaving(false);
                                                             return;
                                                         }
 
@@ -666,14 +673,16 @@
                                                                 setConfirmMessage(msg);
                                                                 setPendingAction(() => () => handleUpdate(true));
                                                                 setIsConfirmOpen(true);
-                                                                return;
+                                                                // Don't need to disable saving, as finally block will handle it
+                                                            } else {
+                                                                setSubmitError(msg);
+                                                                const errors = {};
+                                                                if (msg.toLowerCase().includes("room")) errors.roomId = true;
+                                                                if (msg.toLowerCase().includes("teacher")) errors.teacherId = true;
+                                                                setFormErrors(errors);
                                                             }
-
-                                                            setSubmitError(msg);
-                                                            const errors = {};
-                                                            if (msg.toLowerCase().includes("room")) errors.roomId = true;
-                                                            if (msg.toLowerCase().includes("teacher")) errors.teacherId = true;
-                                                            setFormErrors(errors);
+                                                        } finally {
+                                                            setIsSaving(false);
                                                         }
                                                       };
 
@@ -691,7 +700,7 @@
                                                       const getAllWeeks = () => { return Array.from({ length: 40 }, (_, i) => i + 1); };
                                                       const handleWeekChange = (e) => { const weekNumber = e.target.value; const schoolYearStartDate = new Date('2025-08-25T00:00:00Z'); const newDate = new Date(schoolYearStartDate.setDate(schoolYearStartDate.getDate() + (weekNumber - 1) * 7)); setCurrentDay(newDate); setInitialDay(newDate); };
                                                       
-                                                      const generatePDF = async (isForEmail = false, teacherName = null, grade = null) => {
+                                                      const generatePDF = async (isForEmail = false, teacherName = null, grade = null, container = document) => {
                                                         const { jsPDF } = window.jspdf;
                                                         const pdf = new jsPDF('landscape', 'pt', 'a4');
                                                         
@@ -704,7 +713,7 @@
                                                           tableId = '#schedule-table';
                                                         }
 
-                                                        const table = document.querySelector(tableId);
+                                                        const table = container.querySelector(tableId);
                                                         if (!table) {
                                                           const errorMsg = `Could not find table: ${tableId}`;
                                                           console.error(errorMsg);
@@ -900,7 +909,7 @@
 
                                                           await new Promise(resolve => {
                                                             ReactDOM.render(componentToRender, pdfContainer, async () => {
-                                                              await generatePDF(false, teacherName, grade);
+                                                              await generatePDF(false, teacherName, grade, pdfContainer);
                                                               ReactDOM.unmountComponentAtNode(pdfContainer);
                                                               resolve();
                                                             });
@@ -1488,7 +1497,7 @@
 
                                                               const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={() => {}} isEditor={isEditor} />;
                                                               
-                                                              const pdfDataUri = await new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generatePDF(true, teacher.name, null))));
+                                                              const pdfDataUri = await new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generatePDF(true, teacher.name, null, pdfContainer))));
                                                               ReactDOM.unmountComponentAtNode(pdfContainer);
 
                                                               if (!pdfDataUri) throw new Error('PDF generation failed.');
@@ -2562,7 +2571,7 @@
                                                                                                                                     value={counterSelectedTeacher}
                                                                                                                                     onChange={(e) => setCounterSelectedTeacher(e.target.value)}
                                                                                                                                 >
-                                                                                                                                    {teachers.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                                                                                                                                    {teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}
                                                                                                                                 </Select>
                                                                                                                             </FormControl>
                                                                                                                         </Grid>
@@ -2574,7 +2583,7 @@
                                                                                                                                     onChange={(e) => setCounterSelectedSubject(e.target.value)}
                                                                                                                                 >
                                                                                                                                     <MenuItem value=""><em>Any Subject</em></MenuItem>
-                                                                                                                                    {subjects.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+                                                                                                                                    {subjects.map(s => <MenuItem key={s._id} value={s._id}>{s.name}</MenuItem>)}
                                                                                                                                 </Select>
                                                                                                                             </FormControl>
                                                                                                                         </Grid>
@@ -2648,11 +2657,18 @@
                                                                                                                                 <Button onClick={handleConfirmAction} autoFocus>
                                                                                                                                   Save Anyway
                                                                                                                                 </Button>
-                                                                                                                              </DialogActions>
-                                                                                                                            </Dialog>
-                                                                                                              
-                                                                                                                          </>}
-                                                                                                                        </Container>        </ThemeProvider>
+                                                                                                                                              </DialogActions>
+                                                                                                                                            </Dialog>
+                                                                                                                              
+                                                                                                                                            <Backdrop
+                                                                                                                                              sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+                                                                                                                                              open={isSaving}
+                                                                                                                                            >
+                                                                                                                                              <CircularProgress color="inherit" />
+                                                                                                                                            </Backdrop>
+                                                                                                                              
+                                                                                                                                          </>}
+                                                                                                                                        </Container>        </ThemeProvider>
       );
     }
 
