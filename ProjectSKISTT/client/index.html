@@ -210,7 +210,9 @@
                                                         
                                                         const allTeachersOption = { id: 'all-teachers', name: 'All Teachers', email: 'a.bukhariev@krumbach.school' };
                                                         
-                                                        const teachersWithEmail = teachers.filter(t => t.email && t.email.trim() !== '');
+                                                        const teachersWithEmail = teachers
+                                                            .filter(t => t.email && t.email.trim() !== '')
+                                                            .map(t => ({ ...t, id: t._id })); // Ensure 'id' matches '_id' for consistent selection
 
                                                         setEmailRecipients([allTeachersOption, ...teachersWithEmail]);
                                                         setSelectedRecipients({});
