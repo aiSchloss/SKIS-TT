@@ -48,7 +48,12 @@
       CardContent,
       Alert,
       Menu,
-      useMediaQuery
+      useMediaQuery,
+      Dialog,
+      DialogTitle,
+      DialogContent,
+      DialogContentText,
+      DialogActions
     } = MaterialUI;
 
     const theme = createTheme({
@@ -133,6 +138,9 @@
       });
       const [formErrors, setFormErrors] = React.useState({});
       const [submitError, setSubmitError] = React.useState('');
+      const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
+      const [confirmMessage, setConfirmMessage] = React.useState('');
+      const [pendingAction, setPendingAction] = React.useState(null);
       const [isExportModalOpen, setExportModalOpen] = React.useState(false);
       const [exportWeek, setExportWeek] = React.useState('');
       const [exportDays, setExportDays] = React.useState({ Monday: false, Tuesday: false, Wednesday: false, Thursday: false, Friday: false });
@@ -212,6 +220,19 @@
                                                         setIsSendMailModalOpen(false);
                                                         setSelectedRecipients({});
                                                         // emailBody is intentionally not cleared
+                                                      };
+
+                                                      const handleConfirmClose = () => {
+                                                          setIsConfirmOpen(false);
+                                                          setConfirmMessage('');
+                                                          setPendingAction(null);
+                                                      };
+
+                                                      const handleConfirmAction = () => {
+                                                          if (pendingAction) {
+                                                              pendingAction();
+                                                          }
+                                                          handleConfirmClose();
                                                       };
 
                                                       const dateInputRef = React.useRef(null);
@@ -519,10 +540,10 @@
                                                             const isConflict = msg.toLowerCase().includes("room") || msg.toLowerCase().includes("teacher") || msg.toLowerCase().includes("booked") || msg.toLowerCase().includes("assigned");
                                                             
                                                             if (isConflict && !isForce) {
-                                                                if (window.confirm(`${msg}\n\nDo you want to save this event anyway?`)) {
-                                                                    handleCreate(true); // Retry with force
-                                                                    return;
-                                                                }
+                                                                setConfirmMessage(msg);
+                                                                setPendingAction(() => () => handleCreate(true));
+                                                                setIsConfirmOpen(true);
+                                                                return;
                                                             }
 
                                                             setSubmitError(msg);
@@ -642,10 +663,10 @@
                                                             const isConflict = msg.toLowerCase().includes("room") || msg.toLowerCase().includes("teacher") || msg.toLowerCase().includes("booked") || msg.toLowerCase().includes("assigned");
                                                             
                                                             if (isConflict && !isForce) {
-                                                                if (window.confirm(`${msg}\n\nDo you want to save this event anyway?`)) {
-                                                                    handleUpdate(true); // Retry with force
-                                                                    return;
-                                                                }
+                                                                setConfirmMessage(msg);
+                                                                setPendingAction(() => () => handleUpdate(true));
+                                                                setIsConfirmOpen(true);
+                                                                return;
                                                             }
 
                                                             setSubmitError(msg);
@@ -2604,11 +2625,34 @@
                                                                                                                         </Button>
                                                                                                                     </Box>
                                                                                                                 </Box>
-                                                                                                              </Modal>
-
-            </>}
-          </Container>
-        </ThemeProvider>
+                                                                                                                                                                                                                              </Modal>
+                                                                                                              
+                                                                                                                            <Dialog
+                                                                                                                              open={isConfirmOpen}
+                                                                                                                              onClose={handleConfirmClose}
+                                                                                                                              aria-labelledby="alert-dialog-title"
+                                                                                                                              aria-describedby="alert-dialog-description"
+                                                                                                                            >
+                                                                                                                              <DialogTitle id="alert-dialog-title">
+                                                                                                                                {"Conflict Detected"}
+                                                                                                                              </DialogTitle>
+                                                                                                                              <DialogContent>
+                                                                                                                                <DialogContentText id="alert-dialog-description">
+                                                                                                                                  {confirmMessage}
+                                                                                                                                  <br/><br/>
+                                                                                                                                  Do you want to save this event anyway?
+                                                                                                                                </DialogContentText>
+                                                                                                                              </DialogContent>
+                                                                                                                              <DialogActions>
+                                                                                                                                <Button onClick={handleConfirmClose}>Cancel</Button>
+                                                                                                                                <Button onClick={handleConfirmAction} autoFocus>
+                                                                                                                                  Save Anyway
+                                                                                                                                </Button>
+                                                                                                                              </DialogActions>
+                                                                                                                            </Dialog>
+                                                                                                              
+                                                                                                                          </>}
+                                                                                                                        </Container>        </ThemeProvider>
       );
     }
 
