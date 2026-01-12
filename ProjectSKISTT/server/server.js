@@ -90,6 +90,13 @@ app.put('/api/email_text/:id', async (req, res) => {
 app.post('/api/send-schedule', async (req, res) => {
     const { emailBody, recipient, subject, fileName, pdfDataUri } = req.body;
 
+    console.log(`[POST /api/send-schedule] Attempting to send email to: ${recipient?.email}`);
+    if (pdfDataUri) {
+        console.log(`[POST /api/send-schedule] PDF Data URI length: ${pdfDataUri.length}`);
+    } else {
+        console.log(`[POST /api/send-schedule] WARNING: No PDF Data URI provided.`);
+    }
+
     if (!SENDGRID_API_KEY || !SENDER_EMAIL) {
         return res.status(503).json({ message: 'Email service is not configured. SENDGRID_API_KEY or SENDER_EMAIL is missing.' });
     }

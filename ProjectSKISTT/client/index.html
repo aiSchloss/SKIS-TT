@@ -1491,16 +1491,21 @@
                                                           // Original logic: Send personal schedules to individual teachers
                                                           for (const recipient of recipients) {
                                                             try {
+                                                              console.log(`Processing email for: ${recipient.name} (${recipient.email})`);
                                                               const pdfContainer = document.getElementById('pdf-container');
                                                               const teacher = teachers.find(t => t._id === recipient.id);
-                                                              if (!teacher) continue; // Skip if not a valid teacher
+                                                              if (!teacher) {
+                                                                  console.warn(`Teacher not found for recipient id: ${recipient.id}`);
+                                                                  continue;
+                                                              }
 
                                                               const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={() => {}} isEditor={isEditor} />;
                                                               
                                                               const pdfDataUri = await new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generatePDF(true, teacher.name, null, pdfContainer))));
                                                               ReactDOM.unmountComponentAtNode(pdfContainer);
 
-                                                              if (!pdfDataUri) throw new Error('PDF generation failed.');
+                                                              if (!pdfDataUri) throw new Error('PDF generation failed (data uri is empty).');
+                                                              console.log(`PDF generated for ${teacher.name}, length: ${pdfDataUri.length}`);
 
                                                               const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
                                                               const fileName = `SKIS_Week_${weekNumber}_${recipient.name.replace(/\s/g, '_')}_Schedule_${dateRangeFormatted}.pdf`;
@@ -1510,7 +1515,12 @@
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ emailBody, recipient, subject, fileName, pdfDataUri })
                                                               });
-                                                              if (!response.ok) throw new Error((await response.json()).message || 'Failed to send email');
+                                                              
+                                                              if (!response.ok) {
+                                                                  const errorResp = await response.json();
+                                                                  throw new Error(errorResp.message || `Server error: ${response.status}`);
+                                                              }
+                                                              console.log(`Email sent successfully to ${recipient.name}`);
 
                                                             } catch (err) {
                                                               console.error(`Error sending schedule to ${recipient.name}:`, err);
