@@ -1730,9 +1730,19 @@
           <CssBaseline />
            <AppBar position="static" sx={{ backgroundColor: '#EF333F' }}>
             <Toolbar>
-              <Box component="div" sx={{ flexGrow: 1 }}>
+              <Box component="div" sx={{ flexGrow: isEditor ? 1 : 0, mr: 2 }}>
                 <img src="v3-2.png" alt="Schloss Krumbach Timetable" style={{ height: '40px', verticalAlign: 'middle', border: '2px solid white', borderRadius: '4px' }} />
               </Box>
+
+              {!isEditor && (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1, color: 'white' }}>
+                    <IconButton onClick={handlePrevDay} color="inherit" disabled={currentDay <= monday}><Icon>arrow_back_ios</Icon></IconButton>
+                    <Typography variant={isMobile ? "subtitle1" : "h6"} sx={{ p: 1, whiteSpace: 'nowrap' }}>
+                      {`${dayFormatter.format(currentDay)} - ${formatDate(currentDay)}`}
+                    </Typography>
+                    <IconButton onClick={handleNextDay} color="inherit" disabled={currentDay >= friday}><Icon>arrow_forward_ios</Icon></IconButton>
+                </Box>
+              )}
 
               {isEditor && (
                 <>
@@ -1774,7 +1784,7 @@
               <Button variant="outlined" color="inherit" onClick={onLogout}>Logout</Button>
             </Toolbar>
           </AppBar>
-          <Container style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Container style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }} sx={{ pb: 8 }}>
             {isEditor ? (
               <>
                 {/* Full controls for editor */}
@@ -1845,18 +1855,7 @@
                     <IconButton onClick={handleNextDay}><Icon>arrow_forward_ios</Icon></IconButton>
                 </Box>
               </>
-            ) : (
-              <>
-                {/* Limited controls for viewer */}
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-                    <IconButton onClick={handlePrevDay} disabled={currentDay <= monday}><Icon>arrow_back_ios</Icon></IconButton>
-                    <Typography variant="h5" sx={{ p: 1 }}>
-                      {`${dayFormatter.format(currentDay)} - ${formatDate(currentDay)}`}
-                    </Typography>
-                    <IconButton onClick={handleNextDay} disabled={currentDay >= friday}><Icon>arrow_forward_ios</Icon></IconButton>
-                </Box>
-              </>
-            )}
+            ) : null}
             {selectedTeacher ? (
               <TeacherScheduleView 
                 teacher={teachers.find(t => t && t._id === selectedTeacher)}
