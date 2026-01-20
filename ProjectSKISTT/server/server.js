@@ -342,11 +342,11 @@ app.delete('/api/events/:id', async (req, res) => {
 // POST a new subject
 app.post('/api/subjects', async (req, res) => {
   try {
-    const { name, color, order } = req.body;
+    const { name, color, order, defaultTeacherId } = req.body;
     if (!name || !color) {
       return res.status(400).json({ message: 'Name and color are required' });
     }
-    const newSubject = { name, color, order };
+    const newSubject = { name, color, order, defaultTeacherId: defaultTeacherId || null };
     const result = await db.collection('subjects').insertOne(newSubject);
     res.status(201).json({ ...newSubject, _id: result.insertedId });
   } catch (error) {
@@ -358,16 +358,16 @@ app.post('/api/subjects', async (req, res) => {
 app.put('/api/subjects/:id', async (req, res) => {
   try {
     const subjectId = req.params.id;
-    const { name, color, order } = req.body;
+    const { name, color, order, defaultTeacherId } = req.body;
     const result = await db.collection('subjects').updateOne(
         { _id: new ObjectId(subjectId) },
-        { $set: { name, color, order } }
+        { $set: { name, color, order, defaultTeacherId: defaultTeacherId || null } }
     );
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Subject not found' });
     }
-    res.json({ _id: subjectId, name, color, order });
+    res.json({ _id: subjectId, name, color, order, defaultTeacherId: defaultTeacherId || null });
   } catch (error) {
     res.status(500).json({ message: 'Error updating subject' });
   }

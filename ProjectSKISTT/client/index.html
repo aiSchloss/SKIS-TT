@@ -159,6 +159,7 @@
                                                       const [editingSubjects, setEditingSubjects] = React.useState([]);
                                                       const [newSubjectName, setNewSubjectName] = React.useState('');
                                                       const [newSubjectColor, setNewSubjectColor] = React.useState('#1976d2'); // Default color
+                                                      const [newSubjectTeacher, setNewSubjectTeacher] = React.useState('');
                                                       const [isUsageModalOpen, setIsUsageModalOpen] = React.useState(false);
                                                       const [usageData, setUsageData] = React.useState({ subjectName: '', dates: [] });
                                                       
@@ -443,7 +444,20 @@
                                                         
                                                         if (name === 'subjectId') { 
                                                           const selectedSubject = subjects.find(s => s._id === value); 
-                                                          if (selectedSubject) { updatedEvent.color = selectedSubject.color; } 
+                                                          if (selectedSubject) { 
+                                                              updatedEvent.color = selectedSubject.color; 
+                                                              
+                                                              // Auto-fill teacher if subject has a default
+                                                              if (selectedSubject.defaultTeacherId && !updatedEvent.teacherId) {
+                                                                  updatedEvent.teacherId = selectedSubject.defaultTeacherId;
+                                                                  
+                                                                  // Chain auto-fill room from the teacher
+                                                                  const selectedTeacher = teachers.find(t => t._id === selectedSubject.defaultTeacherId);
+                                                                  if (selectedTeacher && selectedTeacher.defaultRoomId && !updatedEvent.roomId) {
+                                                                      updatedEvent.roomId = selectedTeacher.defaultRoomId;
+                                                                  }
+                                                              }
+                                                          } 
                                                         }
                                                         
                                                         if (name === 'teacherId') {
@@ -1202,16 +1216,16 @@
                                                             changes.push(fetch(`${API_URL}/subjects`, {
                                                               method: 'POST',
                                                               headers: { 'Content-Type': 'application/json' },
-                                                              body: JSON.stringify({ name: subject.name, color: subject.color, order: index })
+                                                              body: JSON.stringify({ name: subject.name, color: subject.color, order: index, defaultTeacherId: subject.defaultTeacherId })
                                                             }));
                                                           } else {
                                                             // Existing subject, check for changes
                                                             const original = originalSubjects.find(s => s._id === subject._id);
-                                                            if (original && (original.name !== subject.name || original.color !== subject.color || original.order !== index)) {
+                                                            if (original && (original.name !== subject.name || original.color !== subject.color || original.order !== index || original.defaultTeacherId !== subject.defaultTeacherId)) {
                                                               changes.push(fetch(`${API_URL}/subjects/${subject._id}`, {
                                                                 method: 'PUT',
                                                                 headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ name: subject.name, color: subject.color, order: index })
+                                                                body: JSON.stringify({ name: subject.name, color: subject.color, order: index, defaultTeacherId: subject.defaultTeacherId })
                                                               }));
                                                             }
                                                           }
@@ -2220,90 +2234,148 @@
                 </Box>
               </Modal>
                                           <Modal open={isSubjectModalOpen} onClose={handleCloseSubjectModal}>
-                                            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, maxHeight: '80vh', overflowY: 'auto', bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
-                                                <Typography variant="h6" component="h2" sx={{mb: 2}}>Edit Subjects</Typography>
+                                            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: isMobile ? '95%' : 900, maxHeight: '90vh', overflowY: 'auto', bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                                                <Typography variant="h6" component="h2" sx={{mb: 3}}>Edit Subjects</Typography>
                                                 <Box sx={{ mb: 3 }}>
                                                     {editingSubjects.map((subject, index) => (
                                                         <Box 
                                                             key={subject._id || `new-${index}`} 
-                                                            sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, cursor: 'move', p: 1, border: '1px dashed grey' }}
+                                                            sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 1, p: 1, border: '1px solid #eee', borderRadius: '4px', bgcolor: '#fafafa' }}
                                                             draggable={true}
                                                             onDragStart={(e) => handleDragStart(e, index)}
                                                             onDragOver={handleDragOver}
                                                             onDrop={(e) => handleDrop(e, index, 'subjects')}
                                                         >
-                                                            <Icon>drag_indicator</Icon>
-                                                            <TextField
-                                                                label="Subject Name"
-                                                                value={subject.name}
-                                                                onChange={(e) => {
-                                                                    const updatedSubjects = [...editingSubjects];
-                                                                    updatedSubjects[index].name = e.target.value;
-                                                                    setEditingSubjects(updatedSubjects);
-                                                                }}
-                                                                fullWidth
-                                                                variant="outlined"
-                                                            />
-                                                            <input
-                                                                type="color"
-                                                                value={subject.color}
-                                                                onChange={(e) => {
-                                                                    const updatedSubjects = [...editingSubjects];
-                                                                    updatedSubjects[index].color = e.target.value;
-                                                                    setEditingSubjects(updatedSubjects);
-                                                                }}
-                                                                style={{ width: '50px', height: '50px', border: 'none', padding: 0, cursor: 'pointer' }}
-                                                            />
-                                                            <IconButton 
-                                                                onClick={() => {
-                                                                    const updatedSubjects = [...editingSubjects];
-                                                                    updatedSubjects.splice(index, 1);
-                                                                    setEditingSubjects(updatedSubjects);
-                                                                }}
-                                                                disabled={schedules.some(s => s.subjectId === subject._id)}
-                                                                title={schedules.some(s => s.subjectId === subject._id) ? "Cannot delete: Subject is in use" : "Delete Subject"}
-                                                            >
-                                                                <Icon>delete</Icon>
-                                                            </IconButton>
-                                                            {schedules.some(s => s.subjectId === subject._id) && (
-                                                                <IconButton onClick={() => handleOpenUsageModal(subject._id)} title="Find Usages">
-                                                                    <Icon>search</Icon>
-                                                                </IconButton>
-                                                            )}
+                                                            <Icon sx={{ cursor: 'move', color: 'text.secondary' }}>drag_indicator</Icon>
+                                                            <Grid container spacing={2} alignItems="center">
+                                                                <Grid item xs={12} sm={4}>
+                                                                    <TextField
+                                                                        label="Subject Name"
+                                                                        value={subject.name}
+                                                                        onChange={(e) => {
+                                                                            const updatedSubjects = [...editingSubjects];
+                                                                            updatedSubjects[index].name = e.target.value;
+                                                                            setEditingSubjects(updatedSubjects);
+                                                                        }}
+                                                                        fullWidth
+                                                                        size="small"
+                                                                        variant="outlined"
+                                                                    />
+                                                                </Grid>
+                                                                <Grid item xs={12} sm={3}>
+                                                                    <FormControl fullWidth size="small">
+                                                                        <InputLabel>Default Teacher</InputLabel>
+                                                                        <Select
+                                                                            value={subject.defaultTeacherId || ''}
+                                                                            label="Default Teacher"
+                                                                            onChange={(e) => {
+                                                                                const updatedSubjects = [...editingSubjects];
+                                                                                updatedSubjects[index].defaultTeacherId = e.target.value;
+                                                                                setEditingSubjects(updatedSubjects);
+                                                                            }}
+                                                                        >
+                                                                            <MenuItem value=""><em>None</em></MenuItem>
+                                                                            {teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}
+                                                                        </Select>
+                                                                    </FormControl>
+                                                                </Grid>
+                                                                <Grid item xs={6} sm={3} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                    <Typography variant="body2" color="textSecondary">Color:</Typography>
+                                                                    <input
+                                                                        type="color"
+                                                                        value={subject.color}
+                                                                        onChange={(e) => {
+                                                                            const updatedSubjects = [...editingSubjects];
+                                                                            updatedSubjects[index].color = e.target.value;
+                                                                            setEditingSubjects(updatedSubjects);
+                                                                        }}
+                                                                        style={{ width: '40px', height: '40px', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '4px' }}
+                                                                    />
+                                                                </Grid>
+                                                                <Grid item xs={6} sm={2} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                                                                    <IconButton 
+                                                                        size="small"
+                                                                        onClick={() => {
+                                                                            const updatedSubjects = [...editingSubjects];
+                                                                            updatedSubjects.splice(index, 1);
+                                                                            setEditingSubjects(updatedSubjects);
+                                                                        }}
+                                                                        disabled={schedules.some(s => s.subjectId === subject._id)}
+                                                                        title={schedules.some(s => s.subjectId === subject._id) ? "Cannot delete: Subject is in use" : "Delete Subject"}
+                                                                    >
+                                                                        <Icon>delete</Icon>
+                                                                    </IconButton>
+                                                                    {schedules.some(s => s.subjectId === subject._id) && (
+                                                                        <IconButton size="small" onClick={() => handleOpenUsageModal(subject._id)} title="Find Usages">
+                                                                            <Icon>search</Icon>
+                                                                        </IconButton>
+                                                                    )}
+                                                                </Grid>
+                                                            </Grid>
                                                         </Box>
                                                     ))}
                                                 </Box>
+                                                
                                                 <Typography variant="h6" component="h2" sx={{mb: 2}}>Add New Subject</Typography>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-                                                    <TextField
-                                                        label="New Subject Name"
-                                                        value={newSubjectName}
-                                                        onChange={(e) => setNewSubjectName(e.target.value)}
-                                                        fullWidth
-                                                        variant="outlined"
-                                                    />
-                                                    <input
-                                                        type="color"
-                                                        value={newSubjectColor}
-                                                        onChange={(e) => setNewSubjectColor(e.target.value)}
-                                                        style={{ width: '50px', height: '50px', border: 'none', padding: 0, cursor: 'pointer' }}
-                                                    />
-                                                    <Button
-                                                        variant="contained"
-                                                        onClick={() => {
-                                                            if (newSubjectName.trim()) {
-                                                                setEditingSubjects([...editingSubjects, { name: newSubjectName.trim(), color: newSubjectColor }]);
-                                                                setNewSubjectName('');
-                                                                setNewSubjectColor('#1976d2');
-                                                            }
-                                                        }}
-                                                    >
-                                                        Add
-                                                    </Button>
+                                                <Box sx={{ p: 2, border: '2px dashed #1976d2', borderRadius: '4px', bgcolor: '#e3f2fd' }}>
+                                                    <Grid container spacing={2} alignItems="center">
+                                                        <Grid item xs={12} sm={4}>
+                                                            <TextField
+                                                                label="New Subject Name"
+                                                                value={newSubjectName}
+                                                                onChange={(e) => setNewSubjectName(e.target.value)}
+                                                                fullWidth
+                                                                variant="outlined"
+                                                            />
+                                                        </Grid>
+                                                        <Grid item xs={12} sm={3}>
+                                                            <FormControl fullWidth>
+                                                                <InputLabel>Default Teacher</InputLabel>
+                                                                <Select
+                                                                    value={newSubjectTeacher}
+                                                                    label="Default Teacher"
+                                                                    onChange={(e) => setNewSubjectTeacher(e.target.value)}
+                                                                >
+                                                                    <MenuItem value=""><em>None</em></MenuItem>
+                                                                    {teachers.map(t => <MenuItem key={t._id} value={t._id}>{t.name}</MenuItem>)}
+                                                                </Select>
+                                                            </FormControl>
+                                                        </Grid>
+                                                        <Grid item xs={6} sm={3} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                            <Typography variant="body2" color="textSecondary">Color:</Typography>
+                                                            <input
+                                                                type="color"
+                                                                value={newSubjectColor}
+                                                                onChange={(e) => setNewSubjectColor(e.target.value)}
+                                                                style={{ width: '56px', height: '56px', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '4px' }}
+                                                            />
+                                                        </Grid>
+                                                        <Grid item xs={6} sm={2}>
+                                                            <Button
+                                                                variant="contained"
+                                                                fullWidth
+                                                                sx={{ height: '56px' }}
+                                                                onClick={() => {
+                                                                    if (newSubjectName.trim()) {
+                                                                        setEditingSubjects([...editingSubjects, { 
+                                                                            name: newSubjectName.trim(), 
+                                                                            color: newSubjectColor,
+                                                                            defaultTeacherId: newSubjectTeacher
+                                                                        }]);
+                                                                        setNewSubjectName('');
+                                                                        setNewSubjectColor('#1976d2');
+                                                                        setNewSubjectTeacher('');
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Add
+                                                            </Button>
+                                                        </Grid>
+                                                    </Grid>
                                                 </Box>
-                                                <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 1}}>
-                                                    <Button onClick={handleCloseSubjectModal}>Cancel</Button>
-                                                    <Button variant="contained" onClick={handleSaveSubjects}>Save All Changes</Button>
+                                                <Box sx={{mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2}}>
+                                                    <Button onClick={handleCloseSubjectModal} size="large">Cancel</Button>
+                                                    <Button variant="contained" onClick={handleSaveSubjects} size="large">Save All Changes</Button>
                                                 </Box>
                                             </Box>
                                           </Modal>
