@@ -166,6 +166,7 @@
                                                       const [editingTeachers, setEditingTeachers] = React.useState([]);
                                                       const [newTeacherName, setNewTeacherName] = React.useState('');
                                                       const [newTeacherEmail, setNewTeacherEmail] = React.useState('');
+                                                      const [newTeacherRoom, setNewTeacherRoom] = React.useState('');
                                                       const [isTeacherUsageModalOpen, setIsTeacherUsageModalOpen] = React.useState(false);
                                                       const [teacherUsageData, setTeacherUsageData] = React.useState({ teacherName: '', dates: [] });
 
@@ -439,10 +440,19 @@
                                                       const handleFormChange = (e) => { 
                                                         const { name, value } = e.target; 
                                                         const updatedEvent = { ...newEvent, [name]: value }; 
+                                                        
                                                         if (name === 'subjectId') { 
                                                           const selectedSubject = subjects.find(s => s._id === value); 
                                                           if (selectedSubject) { updatedEvent.color = selectedSubject.color; } 
-                                                        } 
+                                                        }
+                                                        
+                                                        if (name === 'teacherId') {
+                                                            const selectedTeacher = teachers.find(t => t._id === value);
+                                                            if (selectedTeacher && selectedTeacher.defaultRoomId) {
+                                                                updatedEvent.roomId = selectedTeacher.defaultRoomId;
+                                                            }
+                                                        }
+
                                                         setNewEvent(updatedEvent); 
                                                       };
 
@@ -1257,15 +1267,15 @@
                                                             changes.push(fetch(`${API_URL}/teachers`, {
                                                               method: 'POST',
                                                               headers: { 'Content-Type': 'application/json' },
-                                                              body: JSON.stringify({ name: teacher.name, order: index, email: teacher.email })
+                                                              body: JSON.stringify({ name: teacher.name, order: index, email: teacher.email, defaultRoomId: teacher.defaultRoomId })
                                                             }));
                                                           } else { // Existing teacher
                                                             const original = originalTeachers.find(t => t._id === teacher._id);
-                                                            if (original && (original.name !== teacher.name || original.order !== index || original.email !== teacher.email)) {
+                                                            if (original && (original.name !== teacher.name || original.order !== index || original.email !== teacher.email || original.defaultRoomId !== teacher.defaultRoomId)) {
                                                               changes.push(fetch(`${API_URL}/teachers/${teacher._id}`, {
                                                                 method: 'PUT',
                                                                 headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ name: teacher.name, order: index, email: teacher.email })
+                                                                body: JSON.stringify({ name: teacher.name, order: index, email: teacher.email, defaultRoomId: teacher.defaultRoomId })
                                                               }));
                                                             }
                                                           }
@@ -2366,6 +2376,21 @@
                                                                                     variant="outlined"
                                                                                     sx={{ mt: 1 }}
                                                                                 />
+                                                                                <FormControl fullWidth sx={{ mt: 1 }}>
+                                                                                    <InputLabel>Default Room</InputLabel>
+                                                                                    <Select
+                                                                                        value={teacher.defaultRoomId || ''}
+                                                                                        label="Default Room"
+                                                                                        onChange={(e) => {
+                                                                                            const updatedTeachers = [...editingTeachers];
+                                                                                            updatedTeachers[index].defaultRoomId = e.target.value;
+                                                                                            setEditingTeachers(updatedTeachers);
+                                                                                        }}
+                                                                                    >
+                                                                                        <MenuItem value=""><em>None</em></MenuItem>
+                                                                                        {rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}
+                                                                                    </Select>
+                                                                                </FormControl>
                                                                                 <IconButton 
                                                                                     onClick={() => {
                                                                                         const updatedTeachers = [...editingTeachers];
@@ -2386,33 +2411,54 @@
                                                                         ))}
                                                                     </Box>
                                                                     <Typography variant="h6" component="h2" sx={{mb: 2}}>Add New Teacher</Typography>
-                                                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-                                                                        <TextField
-                                                                            label="New Teacher Name"
-                                                                            value={newTeacherName}
-                                                                            onChange={(e) => setNewTeacherName(e.target.value)}
-                                                                            fullWidth
-                                                                            variant="outlined"
-                                                                        />
-                                                                        <TextField
-                                                                            label="New Teacher Email"
-                                                                            value={newTeacherEmail}
-                                                                            onChange={(e) => setNewTeacherEmail(e.target.value)}
-                                                                            fullWidth
-                                                                            variant="outlined"
-                                                                        />
-                                                                        <Button
-                                                                            variant="contained"
-                                                                            onClick={() => {
-                                                                                if (newTeacherName.trim()) {
-                                                                                    setEditingTeachers([...editingTeachers, { name: newTeacherName.trim(), email: newTeacherEmail.trim() }]);
-                                                                                    setNewTeacherName('');
-                                                                                    setNewTeacherEmail('');
-                                                                                }
-                                                                            }}
-                                                                        >
-                                                                            Add
-                                                                        </Button>
+                                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
+                                                                        <Box sx={{ display: 'flex', gap: 2 }}>
+                                                                            <TextField
+                                                                                label="New Teacher Name"
+                                                                                value={newTeacherName}
+                                                                                onChange={(e) => setNewTeacherName(e.target.value)}
+                                                                                fullWidth
+                                                                                variant="outlined"
+                                                                            />
+                                                                            <TextField
+                                                                                label="New Teacher Email"
+                                                                                value={newTeacherEmail}
+                                                                                onChange={(e) => setNewTeacherEmail(e.target.value)}
+                                                                                fullWidth
+                                                                                variant="outlined"
+                                                                            />
+                                                                        </Box>
+                                                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                                                            <FormControl fullWidth>
+                                                                                <InputLabel>Default Room</InputLabel>
+                                                                                <Select
+                                                                                    value={newTeacherRoom}
+                                                                                    label="Default Room"
+                                                                                    onChange={(e) => setNewTeacherRoom(e.target.value)}
+                                                                                >
+                                                                                    <MenuItem value=""><em>None</em></MenuItem>
+                                                                                    {rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}
+                                                                                </Select>
+                                                                            </FormControl>
+                                                                            <Button
+                                                                                variant="contained"
+                                                                                sx={{ minWidth: '100px', height: '56px' }}
+                                                                                onClick={() => {
+                                                                                    if (newTeacherName.trim()) {
+                                                                                        setEditingTeachers([...editingTeachers, { 
+                                                                                            name: newTeacherName.trim(), 
+                                                                                            email: newTeacherEmail.trim(),
+                                                                                            defaultRoomId: newTeacherRoom 
+                                                                                        }]);
+                                                                                        setNewTeacherName('');
+                                                                                        setNewTeacherEmail('');
+                                                                                        setNewTeacherRoom('');
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                Add
+                                                                            </Button>
+                                                                        </Box>
                                                                     </Box>
                                                                     <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 1}}>
                                                                         <Button onClick={handleCloseTeacherModal}>Cancel</Button>

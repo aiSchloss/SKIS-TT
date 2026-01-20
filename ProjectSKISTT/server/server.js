@@ -401,11 +401,11 @@ app.delete('/api/subjects/:id', async (req, res) => {
 // POST a new teacher
 app.post('/api/teachers', async (req, res) => {
   try {
-    const { name, order, email } = req.body;
+    const { name, order, email, defaultRoomId } = req.body;
     if (!name) {
       return res.status(400).json({ message: 'Name is required' });
     }
-    const newTeacher = { name, order, email: email || '' };
+    const newTeacher = { name, order, email: email || '', defaultRoomId: defaultRoomId || null };
     const result = await db.collection('teachers').insertOne(newTeacher);
     res.status(201).json({ ...newTeacher, _id: result.insertedId });
   } catch (error) {
@@ -418,16 +418,16 @@ app.post('/api/teachers', async (req, res) => {
 app.put('/api/teachers/:id', async (req, res) => {
   try {
     const teacherId = req.params.id;
-    const { name, order, email } = req.body;
+    const { name, order, email, defaultRoomId } = req.body;
     const result = await db.collection('teachers').updateOne(
         { _id: new ObjectId(teacherId) },
-        { $set: { name, order, email } }
+        { $set: { name, order, email, defaultRoomId: defaultRoomId || null } }
     );
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Teacher not found' });
     }
-    res.json({ _id: teacherId, name, order, email });
+    res.json({ _id: teacherId, name, order, email, defaultRoomId: defaultRoomId || null });
   } catch (error) {
     console.error('Error updating teacher:', error);
     res.status(500).json({ message: 'Error updating teacher' });
