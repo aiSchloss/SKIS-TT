@@ -53,27 +53,31 @@ connectToMongo();
 
 // --- Email Setup (Nodemailer) ---
 const EMAIL_USER = process.env.EMAIL_USER; // Your Google email
-const EMAIL_PASS = process.env.EMAIL_PASS; // Your Google App Password
+const EMAIL_PASS = process.env.EMAIL_PASS; // Your Google App Password (fallback)
+const EMAIL_REFRESH_TOKEN = process.env.EMAIL_REFRESH_TOKEN; // For OAuth2
 
 let transporter;
 
-if (EMAIL_USER && EMAIL_PASS) {
+if (EMAIL_USER && (EMAIL_REFRESH_TOKEN || EMAIL_PASS)) {
+    const auth = EMAIL_REFRESH_TOKEN ? {
+        type: 'OAuth2',
+        user: EMAIL_USER,
+        clientId: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+        refreshToken: EMAIL_REFRESH_TOKEN,
+    } : {
+        user: EMAIL_USER,
+        pass: EMAIL_PASS,
+    };
+
     transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false, // use STARTTLS
-        requireTLS: true,
-        auth: {
-            user: EMAIL_USER,
-            pass: EMAIL_PASS,
-        },
-        connectionTimeout: 15000,
-        greetingTimeout: 15000,
-        socketTimeout: 15000,
+        service: 'gmail', // Automatically sets host to smtp.gmail.com and port 465/587 correctly
+        auth: auth,
     });
-    console.log(`Email configured for: ${EMAIL_USER} (host: smtp.gmail.com, port: 587, secure: false)`);
+    
+    console.log(`Email configured for: ${EMAIL_USER} using ${EMAIL_REFRESH_TOKEN ? 'OAuth2' : 'App Password'}`);
 } else {
-    console.warn('EMAIL_USER or EMAIL_PASS environment variables are not set. Email sending will not work.');
+    console.warn('EMAIL_USER and (EMAIL_PASS or EMAIL_REFRESH_TOKEN) are not set. Email sending will not work.');
 }
 
 // --- API Endpoints for the schedule ---
@@ -576,6 +580,10 @@ app.get('/api/auth/google/url', (req, res) => {
 app.get('/api/auth/google/callback', async (req, res) => {
   try {
     const { code } = req.query;
+    console.log('--- GOOGLE AUTH CODE CAPTURED ---');
+    console.log(code);
+    console.log('---------------------------------');
+
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
