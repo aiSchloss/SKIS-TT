@@ -447,15 +447,21 @@
                                                           if (selectedSubject) { 
                                                               updatedEvent.color = selectedSubject.color; 
                                                               
-                                                              // Auto-fill teacher if subject has a default
-                                                              if (selectedSubject.defaultTeacherId && !updatedEvent.teacherId) {
+                                                              // Subject -> Teacher logic
+                                                              if (selectedSubject.defaultTeacherId) {
                                                                   updatedEvent.teacherId = selectedSubject.defaultTeacherId;
                                                                   
-                                                                  // Chain auto-fill room from the teacher
+                                                                  // Teacher -> Room chain
                                                                   const selectedTeacher = teachers.find(t => t._id === selectedSubject.defaultTeacherId);
-                                                                  if (selectedTeacher && selectedTeacher.defaultRoomId && !updatedEvent.roomId) {
+                                                                  if (selectedTeacher && selectedTeacher.defaultRoomId) {
                                                                       updatedEvent.roomId = selectedTeacher.defaultRoomId;
+                                                                  } else {
+                                                                      updatedEvent.roomId = ''; // Clear room if new default teacher has none
                                                                   }
+                                                              } else {
+                                                                  // No default teacher for subject: clear both
+                                                                  updatedEvent.teacherId = '';
+                                                                  updatedEvent.roomId = '';
                                                               }
                                                           } 
                                                         }
@@ -464,6 +470,9 @@
                                                             const selectedTeacher = teachers.find(t => t._id === value);
                                                             if (selectedTeacher && selectedTeacher.defaultRoomId) {
                                                                 updatedEvent.roomId = selectedTeacher.defaultRoomId;
+                                                            } else {
+                                                                // Clear room if teacher has no default
+                                                                updatedEvent.roomId = '';
                                                             }
                                                         }
 
