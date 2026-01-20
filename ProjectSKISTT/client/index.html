@@ -2341,128 +2341,149 @@
                                                               </Modal>
                     
                                                               <Modal open={isTeacherModalOpen} onClose={handleCloseTeacherModal}>
-                                                                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, maxHeight: '80vh', overflowY: 'auto', bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
-                                                                    <Typography variant="h6" component="h2" sx={{mb: 2}}>Edit Teachers</Typography>
+                                                                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: isMobile ? '95%' : 1000, maxHeight: '90vh', overflowY: 'auto', bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                                                                    <Typography variant="h6" component="h2" sx={{mb: 3}}>Edit Teachers</Typography>
                                                                     <Box sx={{ mb: 3 }}>
                                                                         {editingTeachers.map((teacher, index) => (
                                                                             <Box 
                                                                                 key={teacher._id || `new-${index}`} 
-                                                                                sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, cursor: 'move', p: 1, border: '1px dashed grey' }}
-                                                                                                                                            draggable={true}
-                                                                                                                                            onDragStart={(e) => handleDragStart(e, index)}
-                                                                                                                                            onDragOver={handleDragOver}
-                                                                                                                                            onDrop={(e) => handleDrop(e, index, 'teachers')}
-                                                                                                                                        >                                                                                <Icon>drag_indicator</Icon>
+                                                                                sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 1, p: 1, border: '1px solid #eee', borderRadius: '4px', bgcolor: '#fafafa' }}
+                                                                                draggable={true}
+                                                                                onDragStart={(e) => handleDragStart(e, index)}
+                                                                                onDragOver={handleDragOver}
+                                                                                onDrop={(e) => handleDrop(e, index, 'teachers')}
+                                                                            >
+                                                                                <Icon sx={{ cursor: 'move', color: 'text.secondary' }}>drag_indicator</Icon>
+                                                                                <Grid container spacing={1} alignItems="center">
+                                                                                    <Grid item xs={12} sm={3}>
+                                                                                        <TextField
+                                                                                            label="Teacher Name"
+                                                                                            value={teacher.name}
+                                                                                            onChange={(e) => {
+                                                                                                const updatedTeachers = [...editingTeachers];
+                                                                                                updatedTeachers[index].name = e.target.value;
+                                                                                                setEditingTeachers(updatedTeachers);
+                                                                                            }}
+                                                                                            fullWidth
+                                                                                            size="small"
+                                                                                            variant="outlined"
+                                                                                        />
+                                                                                    </Grid>
+                                                                                    <Grid item xs={12} sm={4}>
+                                                                                        <TextField
+                                                                                            label="Email"
+                                                                                            value={teacher.email || ''}
+                                                                                            onChange={(e) => {
+                                                                                                const updatedTeachers = [...editingTeachers];
+                                                                                                updatedTeachers[index].email = e.target.value;
+                                                                                                setEditingTeachers(updatedTeachers);
+                                                                                            }}
+                                                                                            fullWidth
+                                                                                            size="small"
+                                                                                            variant="outlined"
+                                                                                        />
+                                                                                    </Grid>
+                                                                                    <Grid item xs={12} sm={3}>
+                                                                                        <FormControl fullWidth size="small">
+                                                                                            <InputLabel>Default Room</InputLabel>
+                                                                                            <Select
+                                                                                                value={teacher.defaultRoomId || ''}
+                                                                                                label="Default Room"
+                                                                                                onChange={(e) => {
+                                                                                                    const updatedTeachers = [...editingTeachers];
+                                                                                                    updatedTeachers[index].defaultRoomId = e.target.value;
+                                                                                                    setEditingTeachers(updatedTeachers);
+                                                                                                }}
+                                                                                            >
+                                                                                                <MenuItem value=""><em>None</em></MenuItem>
+                                                                                                {rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}
+                                                                                            </Select>
+                                                                                        </FormControl>
+                                                                                    </Grid>
+                                                                                    <Grid item xs={12} sm={2} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                                                                                        <IconButton 
+                                                                                            size="small"
+                                                                                            onClick={() => {
+                                                                                                const updatedTeachers = [...editingTeachers];
+                                                                                                updatedTeachers.splice(index, 1);
+                                                                                                setEditingTeachers(updatedTeachers);
+                                                                                            }}
+                                                                                            disabled={schedules.some(s => s.teacherId === teacher._id)}
+                                                                                            title={schedules.some(s => s.teacherId === teacher._id) ? "Cannot delete: Teacher is in use" : "Delete Teacher"}
+                                                                                        >
+                                                                                            <Icon>delete</Icon>
+                                                                                        </IconButton>
+                                                                                        {schedules.some(s => s.teacherId === teacher._id) && (
+                                                                                            <IconButton size="small" onClick={() => handleOpenTeacherUsageModal(teacher._id)} title="Find Usages">
+                                                                                                <Icon>search</Icon>
+                                                                                            </IconButton>
+                                                                                        )}
+                                                                                    </Grid>
+                                                                                </Grid>
+                                                                            </Box>
+                                                                        ))}
+                                                                    </Box>
+                                                                    
+                                                                    <Typography variant="h6" component="h2" sx={{mb: 2}}>Add New Teacher</Typography>
+                                                                    <Box sx={{ p: 2, border: '2px dashed #1976d2', borderRadius: '4px', bgcolor: '#e3f2fd' }}>
+                                                                        <Grid container spacing={2} alignItems="center">
+                                                                            <Grid item xs={12} sm={3}>
                                                                                 <TextField
-                                                                                    label="Teacher Name"
-                                                                                    value={teacher.name}
-                                                                                    onChange={(e) => {
-                                                                                        const updatedTeachers = [...editingTeachers];
-                                                                                        updatedTeachers[index].name = e.target.value;
-                                                                                        setEditingTeachers(updatedTeachers);
-                                                                                    }}
+                                                                                    label="New Teacher Name"
+                                                                                    value={newTeacherName}
+                                                                                    onChange={(e) => setNewTeacherName(e.target.value)}
                                                                                     fullWidth
                                                                                     variant="outlined"
                                                                                 />
+                                                                            </Grid>
+                                                                            <Grid item xs={12} sm={4}>
                                                                                 <TextField
-                                                                                    label="Email"
-                                                                                    value={teacher.email || ''}
-                                                                                    onChange={(e) => {
-                                                                                        const updatedTeachers = [...editingTeachers];
-                                                                                        updatedTeachers[index].email = e.target.value;
-                                                                                        setEditingTeachers(updatedTeachers);
-                                                                                    }}
+                                                                                    label="New Teacher Email"
+                                                                                    value={newTeacherEmail}
+                                                                                    onChange={(e) => setNewTeacherEmail(e.target.value)}
                                                                                     fullWidth
                                                                                     variant="outlined"
-                                                                                    sx={{ mt: 1 }}
                                                                                 />
-                                                                                <FormControl fullWidth sx={{ mt: 1 }}>
+                                                                            </Grid>
+                                                                            <Grid item xs={12} sm={3}>
+                                                                                <FormControl fullWidth>
                                                                                     <InputLabel>Default Room</InputLabel>
                                                                                     <Select
-                                                                                        value={teacher.defaultRoomId || ''}
+                                                                                        value={newTeacherRoom}
                                                                                         label="Default Room"
-                                                                                        onChange={(e) => {
-                                                                                            const updatedTeachers = [...editingTeachers];
-                                                                                            updatedTeachers[index].defaultRoomId = e.target.value;
-                                                                                            setEditingTeachers(updatedTeachers);
-                                                                                        }}
+                                                                                        onChange={(e) => setNewTeacherRoom(e.target.value)}
                                                                                     >
                                                                                         <MenuItem value=""><em>None</em></MenuItem>
                                                                                         {rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}
                                                                                     </Select>
                                                                                 </FormControl>
-                                                                                <IconButton 
+                                                                            </Grid>
+                                                                            <Grid item xs={12} sm={2}>
+                                                                                <Button
+                                                                                    variant="contained"
+                                                                                    fullWidth
+                                                                                    sx={{ height: '56px' }}
                                                                                     onClick={() => {
-                                                                                        const updatedTeachers = [...editingTeachers];
-                                                                                        updatedTeachers.splice(index, 1);
-                                                                                        setEditingTeachers(updatedTeachers);
+                                                                                        if (newTeacherName.trim()) {
+                                                                                            setEditingTeachers([...editingTeachers, { 
+                                                                                                name: newTeacherName.trim(), 
+                                                                                                email: newTeacherEmail.trim(),
+                                                                                                defaultRoomId: newTeacherRoom 
+                                                                                            }]);
+                                                                                            setNewTeacherName('');
+                                                                                            setNewTeacherEmail('');
+                                                                                            setNewTeacherRoom('');
+                                                                                        }
                                                                                     }}
-                                                                                    disabled={schedules.some(s => s.teacherId === teacher._id)}
-                                                                                    title={schedules.some(s => s.teacherId === teacher._id) ? "Cannot delete: Teacher is in use" : "Delete Teacher"}
                                                                                 >
-                                                                                    <Icon>delete</Icon>
-                                                                                </IconButton>
-                                                                                {schedules.some(s => s.teacherId === teacher._id) && (
-                                                                                    <IconButton onClick={() => handleOpenTeacherUsageModal(teacher._id)} title="Find Usages">
-                                                                                        <Icon>search</Icon>
-                                                                                    </IconButton>
-                                                                                )}
-                                                                            </Box>
-                                                                        ))}
+                                                                                    Add
+                                                                                </Button>
+                                                                            </Grid>
+                                                                        </Grid>
                                                                     </Box>
-                                                                    <Typography variant="h6" component="h2" sx={{mb: 2}}>Add New Teacher</Typography>
-                                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-                                                                        <Box sx={{ display: 'flex', gap: 2 }}>
-                                                                            <TextField
-                                                                                label="New Teacher Name"
-                                                                                value={newTeacherName}
-                                                                                onChange={(e) => setNewTeacherName(e.target.value)}
-                                                                                fullWidth
-                                                                                variant="outlined"
-                                                                            />
-                                                                            <TextField
-                                                                                label="New Teacher Email"
-                                                                                value={newTeacherEmail}
-                                                                                onChange={(e) => setNewTeacherEmail(e.target.value)}
-                                                                                fullWidth
-                                                                                variant="outlined"
-                                                                            />
-                                                                        </Box>
-                                                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                                                                            <FormControl fullWidth>
-                                                                                <InputLabel>Default Room</InputLabel>
-                                                                                <Select
-                                                                                    value={newTeacherRoom}
-                                                                                    label="Default Room"
-                                                                                    onChange={(e) => setNewTeacherRoom(e.target.value)}
-                                                                                >
-                                                                                    <MenuItem value=""><em>None</em></MenuItem>
-                                                                                    {rooms.map(r => <MenuItem key={r._id} value={r._id}>{r.name}</MenuItem>)}
-                                                                                </Select>
-                                                                            </FormControl>
-                                                                            <Button
-                                                                                variant="contained"
-                                                                                sx={{ minWidth: '100px', height: '56px' }}
-                                                                                onClick={() => {
-                                                                                    if (newTeacherName.trim()) {
-                                                                                        setEditingTeachers([...editingTeachers, { 
-                                                                                            name: newTeacherName.trim(), 
-                                                                                            email: newTeacherEmail.trim(),
-                                                                                            defaultRoomId: newTeacherRoom 
-                                                                                        }]);
-                                                                                        setNewTeacherName('');
-                                                                                        setNewTeacherEmail('');
-                                                                                        setNewTeacherRoom('');
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                Add
-                                                                            </Button>
-                                                                        </Box>
-                                                                    </Box>
-                                                                    <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 1}}>
-                                                                        <Button onClick={handleCloseTeacherModal}>Cancel</Button>
-                                                                        <Button variant="contained" onClick={handleSaveTeachers}>Save All Changes</Button>
+                                                                    <Box sx={{mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2}}>
+                                                                        <Button onClick={handleCloseTeacherModal} size="large">Cancel</Button>
+                                                                        <Button variant="contained" onClick={handleSaveTeachers} size="large">Save All Changes</Button>
                                                                     </Box>
                                                                 </Box>
                                                               </Modal>
