@@ -2267,6 +2267,9 @@
                                     onMouseLeave={(e) => { if(isEditor) e.currentTarget.style.backgroundColor = rowStyle.backgroundColor || '#e0e0e0'; }}
                                 >
                                     {cellContent}
+                                    {/* Overlay buttons for the cell (if needed) could go here, but we use context menu now */}
+                                </td>
+                              );
                           })}
                           </tr>
                       )
