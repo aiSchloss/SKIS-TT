@@ -2155,17 +2155,18 @@
                                                         whiteSpace: 'normal', 
                                                         wordBreak: 'break-word', 
                                                         position: 'relative', 
-                                                        border: selectedEventIds.includes(event._id) ? '2px solid yellow' : 'none',
+                                                        border: selectedEventIds.includes(event._id) ? '3px solid #1976d2' : 'none',
+                                                        boxShadow: selectedEventIds.includes(event._id) ? '0 0 5px rgba(25, 118, 210, 0.8)' : 'none',
                                                         '&:hover .event-actions': { opacity: 1 }
                                                     }} 
                                                     onClick={() => handleOpenModal(event)}
                                                   >
                                                       {isEditor && (
-                                                          <Box className="event-actions" sx={{ position: 'absolute', top: 0, right: 0, opacity: 0, transition: 'opacity 0.2s', display: 'flex', bgcolor: 'rgba(0,0,0,0.3)', borderRadius: '0 4px 0 4px' }}>
+                                                          <Box className="event-actions" sx={{ position: 'absolute', top: 0, right: 0, opacity: selectedEventIds.includes(event._id) ? 1 : 0, transition: 'opacity 0.2s', display: 'flex', bgcolor: 'rgba(255,255,255,0.9)', borderRadius: '0 4px 0 4px' }}>
                                                               <IconButton
                                                                   size="small"
                                                                   onClick={(e) => handleCopySingle(e, event)}
-                                                                  sx={{ color: 'white', padding: '2px' }}
+                                                                  sx={{ color: '#1976d2', padding: '2px' }}
                                                                   title="Copy"
                                                               >
                                                                   <Icon fontSize="small" sx={{ fontSize: '1rem' }}>content_copy</Icon>
@@ -2177,7 +2178,7 @@
                                                                       const id = event._id;
                                                                       setSelectedEventIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
                                                                   }}
-                                                                  sx={{ color: 'white', '&.Mui-checked': { color: 'yellow' }, padding: '2px' }}
+                                                                  sx={{ color: '#1976d2', '&.Mui-checked': { color: '#1976d2' }, padding: '2px' }}
                                                                   size="small"
                                                               />
                                                           </Box>
@@ -2209,17 +2210,18 @@
                                             whiteSpace: 'normal', 
                                             wordBreak: 'break-word', 
                                             position: 'relative', 
-                                            border: selectedEventIds.includes(event._id) ? '2px solid yellow' : 'none',
+                                            border: selectedEventIds.includes(event._id) ? '3px solid #1976d2' : 'none',
+                                            boxShadow: selectedEventIds.includes(event._id) ? '0 0 5px rgba(25, 118, 210, 0.8)' : 'none',
                                             '&:hover .event-actions': { opacity: 1 }
                                         }} 
                                         onClick={() => handleOpenModal(event)}
                                       >
                                           {isEditor && (
-                                              <Box className="event-actions" sx={{ position: 'absolute', top: 0, right: 0, opacity: 0, transition: 'opacity 0.2s', display: 'flex', bgcolor: 'rgba(0,0,0,0.3)', borderRadius: '0 4px 0 4px' }}>
+                                              <Box className="event-actions" sx={{ position: 'absolute', top: 0, right: 0, opacity: selectedEventIds.includes(event._id) ? 1 : 0, transition: 'opacity 0.2s', display: 'flex', bgcolor: 'rgba(255,255,255,0.9)', borderRadius: '0 4px 0 4px' }}>
                                                   <IconButton
                                                       size="small"
                                                       onClick={(e) => handleCopySingle(e, event)}
-                                                      sx={{ color: 'white', padding: '2px' }}
+                                                      sx={{ color: '#1976d2', padding: '2px' }}
                                                       title="Copy"
                                                   >
                                                       <Icon fontSize="small" sx={{ fontSize: '1rem' }}>content_copy</Icon>
@@ -2231,7 +2233,7 @@
                                                           const id = event._id;
                                                           setSelectedEventIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
                                                       }}
-                                                      sx={{ color: 'white', '&.Mui-checked': { color: 'yellow' }, padding: '2px' }}
+                                                      sx={{ color: '#1976d2', '&.Mui-checked': { color: '#1976d2' }, padding: '2px' }}
                                                       size="small"
                                                   />
                                               </Box>
