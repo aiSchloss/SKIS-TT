@@ -162,6 +162,7 @@
       };
 
       const handleCellClick = (e, grade, timeSlotId) => {
+          console.log('Cell clicked:', grade, timeSlotId, 'Clipboard length:', clipboardEvents.length);
           if (!isEditor) return;
           
           if (clipboardEvents.length > 0) {
@@ -2250,7 +2251,21 @@
                               }
 
                               // The TD is now always standard
-                              return (<td key={`${grade}-${timeSlot.id}`} style={{...darkGrayCellStyle, ...rowStyle}}>{cellContent}</td>);
+                              return (
+                                <td 
+                                    key={`${grade}-${timeSlot.id}`} 
+                                    style={{
+                                        ...darkGrayCellStyle, 
+                                        ...rowStyle, 
+                                        position: 'relative', 
+                                        cursor: isEditor ? 'pointer' : 'default',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                    className={isEditor ? "editable-cell" : ""}
+                                    onClick={(e) => handleCellClick(e, grade, timeSlot.id)}
+                                    onMouseEnter={(e) => { if(isEditor) e.currentTarget.style.backgroundColor = '#f0f0f0'; }}
+                                    onMouseLeave={(e) => { if(isEditor) e.currentTarget.style.backgroundColor = rowStyle.backgroundColor || '#e0e0e0'; }}
+                                >>{cellContent}</td>);
                           })}
                           </tr>
                       )
