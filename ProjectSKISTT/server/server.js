@@ -6,7 +6,7 @@ import { google } from 'googleapis'
 import { MongoClient, ObjectId } from 'mongodb'
 import express from 'express'
 import cors from 'cors'
-import sgMail from '@sendgrid/mail'; // Import SendGrid Mail
+import nodemailer from 'nodemailer'; // Use Nodemailer instead of SendGrid
 
 // --- Google OAuth 2.0 Configuration ---
 // IMPORTANT: Replace with your own credentials from Google Cloud Console
@@ -51,15 +51,23 @@ async function connectToMongo() {
 
 connectToMongo();
 
-// --- SendGrid Setup ---
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const SENDER_EMAIL = process.env.SENDER_EMAIL;
+// --- Email Setup (Nodemailer) ---
+const EMAIL_USER = process.env.EMAIL_USER; // Your Google email
+const EMAIL_PASS = process.env.EMAIL_PASS; // Your Google App Password
 
-if (SENDGRID_API_KEY) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-  console.log('SendGrid API Key set.');
+let transporter;
+
+if (EMAIL_USER && EMAIL_PASS) {
+    transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: EMAIL_USER,
+            pass: EMAIL_PASS,
+        },
+    });
+    console.log(`Email configured for: ${EMAIL_USER}`);
 } else {
-  console.warn('SENDGRID_API_KEY environment variable is not set. Email sending will not work.');
+    console.warn('EMAIL_USER or EMAIL_PASS environment variables are not set. Email sending will not work.');
 }
 
 // --- API Endpoints for the schedule ---
@@ -97,8 +105,8 @@ app.post('/api/send-schedule', async (req, res) => {
         console.log(`[POST /api/send-schedule] WARNING: No PDF Data URI provided.`);
     }
 
-    if (!SENDGRID_API_KEY || !SENDER_EMAIL) {
-        return res.status(503).json({ message: 'Email service is not configured. SENDGRID_API_KEY or SENDER_EMAIL is missing.' });
+    if (!transporter) {
+        return res.status(503).json({ message: 'Email service is not configured. EMAIL_USER or EMAIL_PASS is missing.' });
     }
     if (!recipient || !recipient.email) {
         return res.status(400).json({ message: 'Recipient is not valid.' });
@@ -111,27 +119,27 @@ app.post('/api/send-schedule', async (req, res) => {
         const base64Data = pdfDataUri.split(';base64,').pop();
 
         const msg = {
+            from: `"SKIS Schedule" <${EMAIL_USER}>`, // Sender address
             to: recipient.email,
-            from: SENDER_EMAIL, // Use the verified sender email
             subject: subject,
             html: `<p>${emailBody.replace(/\n/g, '<br>')}</p>`, // Convert newlines to <br> for HTML email
             attachments: [
                 {
                     content: base64Data,
                     filename: fileName,
-                    type: 'application/pdf',
-                    disposition: 'attachment',
+                    contentType: 'application/pdf',
+                    encoding: 'base64'
                 },
             ],
         };
 
-        await sgMail.send(msg);
-        console.log(`Email sent to ${recipient.email} via SendGrid.`);
+        await transporter.sendMail(msg);
+        console.log(`Email sent to ${recipient.email} via Gmail SMTP.`);
 
         res.status(200).json({ message: `Email sent successfully to ${recipient.email}!` });
 
     } catch (error) {
-        console.error(`Error sending schedule email to ${recipient.email} via SendGrid:`, error);
+        console.error(`Error sending schedule email to ${recipient.email}:`, error);
         res.status(500).json({ message: 'Failed to send email.', error: error.message });
     }
 });
