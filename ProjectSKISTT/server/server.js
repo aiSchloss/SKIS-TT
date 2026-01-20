@@ -59,13 +59,18 @@ let transporter;
 
 if (EMAIL_USER && EMAIL_PASS) {
     transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true, // use SSL
         auth: {
             user: EMAIL_USER,
             pass: EMAIL_PASS,
         },
+        connectionTimeout: 10000, // 10 seconds
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
     });
-    console.log(`Email configured for: ${EMAIL_USER}`);
+    console.log(`Email configured for: ${EMAIL_USER} (host: smtp.gmail.com, port: 465)`);
 } else {
     console.warn('EMAIL_USER or EMAIL_PASS environment variables are not set. Email sending will not work.');
 }
