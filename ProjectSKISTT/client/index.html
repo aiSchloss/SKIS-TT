@@ -180,8 +180,9 @@
           }
       };
 
-      const handlePasteToCell = async (targetGrade, targetTimeSlotId) => {
+      const handlePasteToCell = async (targetGrade, targetTimeSlotId, isForce = false) => {
           if (clipboardEvents.length === 0) return;
+          console.log(`Pasting ${clipboardEvents.length} events to G${targetGrade}-T${targetTimeSlotId}, Force: ${isForce}`);
 
           const year = currentDay.getFullYear();
           const month = String(currentDay.getMonth() + 1).padStart(2, '0');
@@ -190,63 +191,69 @@
 
           setIsSaving(true);
           try {
-              // Prepare new events
-              // We take ALL clipboard events and put them into the Target Grade and TimeSlot.
-              // Note: If clipboard has multiple events, they will ALL stack in this cell.
-              // We strip _id to create new ones.
               const eventsToCreate = clipboardEvents.map(evt => {
                   const { _id, ...rest } = evt;
                   return {
                       ...rest,
                       day: dayString,
                       grade: targetGrade,
-                      timeSlotId: targetTimeSlotId
+                      timeSlotId: targetTimeSlotId,
+                      force: isForce // Pass force flag to backend
                   };
               });
 
-              // We can use the batch API
-              // But we should validate conflicts? The batch API doesn't validate conflicts per item efficiently yet.
-              // Let's iterate and validate locally first, OR just trust the batch and user can fix later.
-              // Requirement: "Warning about conflicts".
-              // Let's do a quick check against existing schedules in state.
-              
-              for (const evt of eventsToCreate) {
-                  if (evt.roomId) {
-                      const conflict = schedules.find(s => s.day === evt.day && s.timeSlotId === evt.timeSlotId && s.roomId === evt.roomId);
-                      if (conflict) {
-                          if (!confirm(`Conflict: Room is booked. Paste anyway?`)) {
-                              setIsSaving(false);
-                              return; // Abort whole paste
+              // Client-side conflict check (optional but good for UX before sending batch)
+              if (!isForce) {
+                  for (const evt of eventsToCreate) {
+                      if (evt.roomId) {
+                          const conflict = schedules.find(s => s.day === evt.day && s.timeSlotId === evt.timeSlotId && s.roomId === evt.roomId);
+                          if (conflict) {
+                              const msg = `Conflict: Room ${rooms.find(r=>r._id===evt.roomId)?.name} is booked.`;
+                              setConfirmMessage(msg);
+                              setPendingAction(() => () => handlePasteToCell(targetGrade, targetTimeSlotId, true));
+                              setIsConfirmOpen(true);
+                              return; 
                           }
                       }
-                  }
-                  if (evt.teacherId) {
-                      const conflict = schedules.find(s => s.day === evt.day && s.timeSlotId === evt.timeSlotId && s.teacherId === evt.teacherId);
-                      if (conflict) {
-                          if (!confirm(`Conflict: Teacher is busy. Paste anyway?`)) {
-                              setIsSaving(false);
+                      if (evt.teacherId) {
+                          const conflict = schedules.find(s => s.day === evt.day && s.timeSlotId === evt.timeSlotId && s.teacherId === evt.teacherId);
+                          if (conflict) {
+                              const msg = `Conflict: Teacher ${teachers.find(t=>t._id===evt.teacherId)?.name} is busy.`;
+                              setConfirmMessage(msg);
+                              setPendingAction(() => () => handlePasteToCell(targetGrade, targetTimeSlotId, true));
+                              setIsConfirmOpen(true);
                               return;
                           }
                       }
                   }
               }
 
-              // Send batch
               const response = await fetch(`${API_URL}/events/batch`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(eventsToCreate)
               });
 
-              if (!response.ok) throw new Error('Failed to paste events');
+              if (!response.ok) {
+                  const errData = await response.json();
+                  throw new Error(errData.message || 'Failed to paste events');
+              }
               
               fetchData();
-              setClipboardEvents([]); // Clear clipboard after paste? Usually yes.
+              setClipboardEvents([]); 
           } catch (err) {
               console.error("Paste error", err);
-              alert("Error pasting events: " + err.message);
+              // Handle server-side conflict errors if batch fails (though we send force=true)
+              const msg = err.message;
+              if ((msg.toLowerCase().includes("room") || msg.toLowerCase().includes("teacher")) && !isForce) {
+                   setConfirmMessage(msg);
+                   setPendingAction(() => () => handlePasteToCell(targetGrade, targetTimeSlotId, true));
+                   setIsConfirmOpen(true);
+              } else {
+                   alert("Error pasting events: " + err.message);
+              }
           } finally {
-              setIsSaving(false);
+              if (!isConfirmOpen) setIsSaving(false); // Only stop saving if not showing dialog
           }
       };
       const [isExportModalOpen, setExportModalOpen] = React.useState(false);
