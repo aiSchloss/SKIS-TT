@@ -580,11 +580,20 @@ app.get('/api/auth/google/url', (req, res) => {
 app.get('/api/auth/google/callback', async (req, res) => {
   try {
     const { code } = req.query;
-    console.log('--- GOOGLE AUTH CODE CAPTURED ---');
-    console.log(code);
-    console.log('---------------------------------');
+    // console.log('--- GOOGLE AUTH CODE CAPTURED ---'); // Code is one-time use, no need to log it if we use it here
+    // console.log(code);
 
     const { tokens } = await oauth2Client.getToken(code);
+    
+    if (tokens.refresh_token) {
+        console.log('--- REFRESH TOKEN CAPTURED ---');
+        console.log(tokens.refresh_token);
+        console.log('------------------------------');
+    } else {
+        console.log('--- NO REFRESH TOKEN RECEIVED ---');
+        console.log('User might have already granted access. Revoke access in Google Account settings and try again.');
+    }
+
     oauth2Client.setCredentials(tokens);
 
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
