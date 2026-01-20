@@ -143,6 +143,111 @@
       const [confirmMessage, setConfirmMessage] = React.useState('');
       const [pendingAction, setPendingAction] = React.useState(null);
       const [isSaving, setIsSaving] = React.useState(false);
+      const [selectedEventIds, setSelectedEventIds] = React.useState([]);
+      const [clipboardEvents, setClipboardEvents] = React.useState([]);
+      const [cellMenuAnchor, setCellMenuAnchor] = React.useState(null);
+      const [activeCellContext, setActiveCellContext] = React.useState(null);
+
+      // ... existing code ...
+
+      const handleCopyEvents = () => {
+          const eventsToCopy = schedules.filter(e => selectedEventIds.includes(e._id));
+          setClipboardEvents(eventsToCopy);
+          setSelectedEventIds([]);
+      };
+
+      const handleCopySingle = (e, event) => {
+          e.stopPropagation();
+          setClipboardEvents([event]);
+      };
+
+      const handleCellClick = (e, grade, timeSlotId) => {
+          if (!isEditor) return;
+          
+          if (clipboardEvents.length > 0) {
+              setCellMenuAnchor(e.currentTarget);
+              setActiveCellContext({ grade, timeSlotId });
+          } else {
+              handleOpenModal(null, { grade, timeSlotId });
+          }
+      };
+
+      const handlePasteFromMenu = () => {
+          setCellMenuAnchor(null);
+          if (activeCellContext) {
+              handlePasteToCell(activeCellContext.grade, activeCellContext.timeSlotId);
+          }
+      };
+
+      const handlePasteToCell = async (targetGrade, targetTimeSlotId) => {
+          if (clipboardEvents.length === 0) return;
+
+          const year = currentDay.getFullYear();
+          const month = String(currentDay.getMonth() + 1).padStart(2, '0');
+          const date = String(currentDay.getDate()).padStart(2, '0');
+          const dayString = `${year}-${month}-${date}`;
+
+          setIsSaving(true);
+          try {
+              // Prepare new events
+              // We take ALL clipboard events and put them into the Target Grade and TimeSlot.
+              // Note: If clipboard has multiple events, they will ALL stack in this cell.
+              // We strip _id to create new ones.
+              const eventsToCreate = clipboardEvents.map(evt => {
+                  const { _id, ...rest } = evt;
+                  return {
+                      ...rest,
+                      day: dayString,
+                      grade: targetGrade,
+                      timeSlotId: targetTimeSlotId
+                  };
+              });
+
+              // We can use the batch API
+              // But we should validate conflicts? The batch API doesn't validate conflicts per item efficiently yet.
+              // Let's iterate and validate locally first, OR just trust the batch and user can fix later.
+              // Requirement: "Warning about conflicts".
+              // Let's do a quick check against existing schedules in state.
+              
+              for (const evt of eventsToCreate) {
+                  if (evt.roomId) {
+                      const conflict = schedules.find(s => s.day === evt.day && s.timeSlotId === evt.timeSlotId && s.roomId === evt.roomId);
+                      if (conflict) {
+                          if (!confirm(`Conflict: Room is booked. Paste anyway?`)) {
+                              setIsSaving(false);
+                              return; // Abort whole paste
+                          }
+                      }
+                  }
+                  if (evt.teacherId) {
+                      const conflict = schedules.find(s => s.day === evt.day && s.timeSlotId === evt.timeSlotId && s.teacherId === evt.teacherId);
+                      if (conflict) {
+                          if (!confirm(`Conflict: Teacher is busy. Paste anyway?`)) {
+                              setIsSaving(false);
+                              return;
+                          }
+                      }
+                  }
+              }
+
+              // Send batch
+              const response = await fetch(`${API_URL}/events/batch`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(eventsToCreate)
+              });
+
+              if (!response.ok) throw new Error('Failed to paste events');
+              
+              fetchData();
+              setClipboardEvents([]); // Clear clipboard after paste? Usually yes.
+          } catch (err) {
+              console.error("Paste error", err);
+              alert("Error pasting events: " + err.message);
+          } finally {
+              setIsSaving(false);
+          }
+      };
       const [isExportModalOpen, setExportModalOpen] = React.useState(false);
       const [exportWeek, setExportWeek] = React.useState('');
       const [exportDays, setExportDays] = React.useState({ Monday: false, Tuesday: false, Wednesday: false, Thursday: false, Friday: false });
@@ -421,7 +526,7 @@
                                                       };
                                           
                                                       // MODAL & EVENT HANDLERS
-                                                      const handleOpenModal = (event = null) => {
+                                                      const handleOpenModal = (event = null, cellContext = null) => {
                                                         if (!isEditor) return;
                                                         setFormErrors({});
                                                         setSubmitError('');
@@ -431,7 +536,20 @@
                                                         } 
                                                         else { 
                                                             setEditingEvent(null); 
-                                                            setNewEvent({ grade: '', grades: [], timeSlotId: '', timeSlotIds: [], subjectId: '', teacherId: '', roomId: '', color: '#ffffff', customSubject: '', customTeacher: '', customRoom: '' }); 
+                                                            // Initialize with cell context if provided
+                                                            const initialGrade = cellContext?.grade || '';
+                                                            const initialTimeSlotId = cellContext?.timeSlotId || '';
+                                                            // If cellContext has day (string), use it? Currently we use currentDay from state.
+                                                            // But let's stick to currentDay unless cellContext overrides it (which it might for future features)
+                                                            
+                                                            setNewEvent({ 
+                                                                grade: initialGrade, 
+                                                                grades: initialGrade ? [initialGrade] : [], 
+                                                                timeSlotId: initialTimeSlotId, 
+                                                                timeSlotIds: initialTimeSlotId ? [initialTimeSlotId] : [], 
+                                                                subjectId: '', teacherId: '', roomId: '', 
+                                                                color: '#ffffff', customSubject: '', customTeacher: '', customRoom: '' 
+                                                            }); 
                                                         }
                                                         setModalOpen(true);
                                                       };
@@ -2024,7 +2142,46 @@
                                               const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                               const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                               return (
-                                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                                  <Box 
+                                                    key={event._id} 
+                                                    sx={{ 
+                                                        flex: 1, 
+                                                        backgroundColor: eventColor, 
+                                                        color: 'white', 
+                                                        padding: '4px 8px', 
+                                                        borderRadius: '4px', 
+                                                        fontSize: '0.8rem', 
+                                                        cursor: isEditor ? 'pointer' : 'default', 
+                                                        whiteSpace: 'normal', 
+                                                        wordBreak: 'break-word', 
+                                                        position: 'relative', 
+                                                        border: selectedEventIds.includes(event._id) ? '2px solid yellow' : 'none',
+                                                        '&:hover .event-actions': { opacity: 1 }
+                                                    }} 
+                                                    onClick={() => handleOpenModal(event)}
+                                                  >
+                                                      {isEditor && (
+                                                          <Box className="event-actions" sx={{ position: 'absolute', top: 0, right: 0, opacity: 0, transition: 'opacity 0.2s', display: 'flex', bgcolor: 'rgba(0,0,0,0.3)', borderRadius: '0 4px 0 4px' }}>
+                                                              <IconButton
+                                                                  size="small"
+                                                                  onClick={(e) => handleCopySingle(e, event)}
+                                                                  sx={{ color: 'white', padding: '2px' }}
+                                                                  title="Copy"
+                                                              >
+                                                                  <Icon fontSize="small" sx={{ fontSize: '1rem' }}>content_copy</Icon>
+                                                              </IconButton>
+                                                              <Checkbox 
+                                                                  checked={selectedEventIds.includes(event._id)}
+                                                                  onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      const id = event._id;
+                                                                      setSelectedEventIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+                                                                  }}
+                                                                  sx={{ color: 'white', '&.Mui-checked': { color: 'yellow' }, padding: '2px' }}
+                                                                  size="small"
+                                                              />
+                                                          </Box>
+                                                      )}
                                                       <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
                                                       <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
                                                   </Box>
@@ -2040,7 +2197,45 @@
                                   const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                   const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                   cellContent = (
-                                      <Box key={event._id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                      <Box 
+                                        key={event._id} 
+                                        sx={{ 
+                                            backgroundColor: eventColor, 
+                                            color: 'white', 
+                                            padding: '4px 8px', 
+                                            borderRadius: '4px', 
+                                            fontSize: '0.8rem', 
+                                            cursor: isEditor ? 'pointer' : 'default', 
+                                            whiteSpace: 'normal', 
+                                            wordBreak: 'break-word', 
+                                            position: 'relative', 
+                                            border: selectedEventIds.includes(event._id) ? '2px solid yellow' : 'none',
+                                            '&:hover .event-actions': { opacity: 1 }
+                                        }} 
+                                        onClick={() => handleOpenModal(event)}
+                                      >
+                                          {isEditor && (
+                                              <Box className="event-actions" sx={{ position: 'absolute', top: 0, right: 0, opacity: 0, transition: 'opacity 0.2s', display: 'flex', bgcolor: 'rgba(0,0,0,0.3)', borderRadius: '0 4px 0 4px' }}>
+                                                  <IconButton
+                                                      size="small"
+                                                      onClick={(e) => handleCopySingle(e, event)}
+                                                      sx={{ color: 'white', padding: '2px' }}
+                                                      title="Copy"
+                                                  >
+                                                      <Icon fontSize="small" sx={{ fontSize: '1rem' }}>content_copy</Icon>
+                                                  </IconButton>
+                                                  <Checkbox 
+                                                      checked={selectedEventIds.includes(event._id)}
+                                                      onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          const id = event._id;
+                                                          setSelectedEventIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+                                                      }}
+                                                      sx={{ color: 'white', '&.Mui-checked': { color: 'yellow' }, padding: '2px' }}
+                                                      size="small"
+                                                  />
+                                              </Box>
+                                          )}
                                           <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
                                           <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
                                       </Box>
