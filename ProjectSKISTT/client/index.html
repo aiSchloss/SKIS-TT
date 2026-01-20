@@ -1470,10 +1470,11 @@
 
                                                         const isSendingToAll = recipients.some(r => r.id === 'all-teachers');
 
+                                                        // 1. Send General Schedule to "All Teachers" (if selected)
                                                         if (isSendingToAll) {
-                                                          // Special case: Send one email with the weekly general schedule
                                                           const allTeachersRecipient = recipients.find(r => r.id === 'all-teachers');
                                                           try {
+                                                            console.log(`Processing email for: All Teachers (${allTeachersRecipient.email})`);
                                                             const pdfDataUri = await generateWeeklyPDF(true);
                                                             const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
                                                             const fileName = `SKIS_Week_${weekNumber}_Schedule_${dateRangeFormatted}.pdf`;
@@ -1484,14 +1485,19 @@
                                                               body: JSON.stringify({ emailBody, recipient: allTeachersRecipient, subject, fileName, pdfDataUri })
                                                             });
                                                             if (!response.ok) throw new Error((await response.json()).message || 'Failed to send email to All Teachers');
+                                                            console.log('Email sent successfully to All Teachers');
                                                             
                                                           } catch (err) {
                                                             console.error(`Error sending weekly schedule to All Teachers:`, err);
                                                             alert(`Error sending weekly schedule to All Teachers: ${err.message}`);
                                                           }
-                                                        } else {
-                                                          // Original logic: Send personal schedules to individual teachers
-                                                          for (const recipient of recipients) {
+                                                        }
+
+                                                        // 2. Send Personal Schedules to individual teachers
+                                                        // Filter out "All Teachers" from the list to avoid duplicate processing or sending generic schedule to a person
+                                                        const personalRecipients = recipients.filter(r => r.id !== 'all-teachers');
+
+                                                        for (const recipient of personalRecipients) {
                                                             try {
                                                               console.log(`Processing email for: ${recipient.name} (${recipient.email})`);
                                                               const pdfContainer = document.getElementById('pdf-container');
@@ -1528,7 +1534,6 @@
                                                               console.error(`Error sending schedule to ${recipient.name}:`, err);
                                                               alert(`Error sending schedule to ${recipient.name}: ${err.message}`);
                                                             }
-                                                          }
                                                         }
                                                         
                                                         setSendingMail(false);
