@@ -153,12 +153,13 @@
       const handleCopyEvents = () => {
           const eventsToCopy = schedules.filter(e => selectedEventIds.includes(e._id));
           setClipboardEvents(eventsToCopy);
-          setSelectedEventIds([]);
+          setSelectedEventIds([]); // Clear selection after copying
       };
 
       const handleCopySingle = (e, event) => {
           e.stopPropagation();
           setClipboardEvents([event]);
+          setSelectedEventIds([]); // Clear any multi-selection when single copying
       };
 
       const handleCellClick = (e, grade, timeSlotId) => {
