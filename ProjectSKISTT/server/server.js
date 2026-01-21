@@ -92,9 +92,9 @@ async function initializeUsers() {
     }
 }
 
-// connectToMongo(); // Moved inside the definition above to chain initialization
+connectToMongo();
 
-// --- Email Setup (Gmail API) ---
+// --- SendGrid Setup ---
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_REFRESH_TOKEN = process.env.EMAIL_REFRESH_TOKEN;
 
