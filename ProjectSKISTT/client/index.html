@@ -363,7 +363,38 @@
 
                                                       const dateInputRef = React.useRef(null);
                                                       const draggedItem = React.useRef(null);
-                                                      const isEditor = user.role === 'editor';
+                                                      
+                                                      // ROLE LOGIC
+                                                      const isAdmin = user.role === 'admin';
+                                                      const isEditor = ['admin', 'editor'].includes(user.role);
+                                                      const isCounter = ['admin', 'editor', 'counter'].includes(user.role); // Can view all & count
+                                                      
+                                                      // Roles Modal State
+                                                      const [isRolesModalOpen, setIsRolesModalOpen] = React.useState(false);
+                                                      const [usersList, setUsersList] = React.useState([]);
+
+                                                      const handleOpenRolesModal = () => {
+                                                          fetch(`${API_URL}/users`)
+                                                              .then(res => res.json())
+                                                              .then(setUsersList)
+                                                              .catch(err => console.error(err));
+                                                          setIsRolesModalOpen(true);
+                                                      };
+
+                                                      const handleUpdateRole = (userId, newRole) => {
+                                                          fetch(`${API_URL}/users/${userId}/role`, {
+                                                              method: 'PUT',
+                                                              headers: { 'Content-Type': 'application/json' },
+                                                              body: JSON.stringify({ role: newRole })
+                                                          })
+                                                          .then(res => {
+                                                              if (res.ok) {
+                                                                  setUsersList(prev => prev.map(u => u._id === userId ? { ...u, role: newRole } : u));
+                                                              } else {
+                                                                  alert('Failed to update role');
+                                                              }
+                                                          });
+                                                      };
                                                 
                                                       // Calculate week boundaries for viewer role
                                                       const today = new Date();
@@ -406,14 +437,15 @@
                                                       }, [currentDay]);
                                                       
                                                       React.useEffect(() => {
-                                                        if (!isEditor) {
+                                                        // Restrict view if not at least a "Counter" (Viewer only sees current week)
+                                                        if (!isCounter) {
                                                           const realToday = new Date();
                                                           // If current day is outside the current real week, reset to today
                                                           if (currentDay < monday || currentDay > friday) {
                                                              setCurrentDay(realToday);
                                                           }
                                                         }
-                                                      }, [isEditor]); // Run only when role changes
+                                                      }, [isCounter]); // Run only when role changes
 
                                                       React.useEffect(() => {
                                                         if (!counterStartDate || !counterEndDate || !counterSelectedTeacher) {
@@ -1992,7 +2024,7 @@
                 </Box>
               )}
 
-              {isEditor && (
+              {isCounter && (
                 <>
                   <Button
                     id="menu-button"
@@ -2015,17 +2047,18 @@
                       'aria-labelledby': 'menu-button',
                     }}
                   >
-                    <MenuItem onClick={() => { handleOpenCopyModal(); handleMenuClose(); }}>Copy Day</MenuItem>
-                    <MenuItem onClick={() => { handleCleanDay(); handleMenuClose(); }}>Clean Day</MenuItem>
-                    <MenuItem onClick={() => { handleOpenCopyWeekModal(); handleMenuClose(); }}>Copy Week</MenuItem>
-                    <MenuItem onClick={() => { handleOpenSubjectModal(); handleMenuClose(); }}>Edit Subjects</MenuItem>
-                    <MenuItem onClick={() => { handleOpenTeacherModal(); handleMenuClose(); }}>Edit Teachers</MenuItem>
-                    <MenuItem onClick={() => { handleOpenRoomModal(); handleMenuClose(); }}>Edit Rooms</MenuItem>
+                    {isEditor && <MenuItem onClick={() => { handleOpenCopyModal(); handleMenuClose(); }}>Copy Day</MenuItem>}
+                    {isEditor && <MenuItem onClick={() => { handleCleanDay(); handleMenuClose(); }}>Clean Day</MenuItem>}
+                    {isEditor && <MenuItem onClick={() => { handleOpenCopyWeekModal(); handleMenuClose(); }}>Copy Week</MenuItem>}
+                    {isEditor && <MenuItem onClick={() => { handleOpenSubjectModal(); handleMenuClose(); }}>Edit Subjects</MenuItem>}
+                    {isEditor && <MenuItem onClick={() => { handleOpenTeacherModal(); handleMenuClose(); }}>Edit Teachers</MenuItem>}
+                    {isEditor && <MenuItem onClick={() => { handleOpenRoomModal(); handleMenuClose(); }}>Edit Rooms</MenuItem>}
+                    {isAdmin && <MenuItem onClick={() => { handleOpenRolesModal(); handleMenuClose(); }}>Edit Roles</MenuItem>}
                     <MenuItem onClick={() => { setIsLessonCounterModalOpen(true); handleMenuClose(); }}>Lesson Counter</MenuItem>
                     <MenuItem onClick={() => { handleOpenExportModal(); handleMenuClose(); }}>Export to PDF</MenuItem>
                   </Menu>
-                  <Button variant="contained" color="primary" sx={{ mr: 2 }} onClick={handleOpenSendMailModal}>Send Mail</Button>
-                  <Button variant="contained" color="primary" sx={{ mr: 2 }} onClick={() => handleOpenModal()} disabled={isLoadingData}>Add Event</Button>
+                  {isEditor && <Button variant="contained" color="primary" sx={{ mr: 2 }} onClick={handleOpenSendMailModal}>Send Mail</Button>}
+                  {isEditor && <Button variant="contained" color="primary" sx={{ mr: 2 }} onClick={() => handleOpenModal()} disabled={isLoadingData}>Add Event</Button>}
                 </>
               )}
 
@@ -3082,8 +3115,71 @@
                                                                                                                                               <CircularProgress color="inherit" />
                                                                                                                                             </Backdrop>
                                                                                                                               
-                                                                                                                                          </>}
-                                                                                                                                        </Container>        </ThemeProvider>
+                                                                                                                                                        <Modal open={isRolesModalOpen} onClose={() => setIsRolesModalOpen(false)}>
+                                                                                                                              
+                                                                                                                                                          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4, maxHeight: '90vh', overflowY: 'auto' }}>
+                                                                                                                              
+                                                                                                                                                              <Typography variant="h6" component="h2" sx={{mb: 2}}>Manage User Roles</Typography>
+                                                                                                                              
+                                                                                                                                                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                                                                              
+                                                                                                                                                                  {usersList.map(u => (
+                                                                                                                              
+                                                                                                                                                                      <Box key={u._id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, border: '1px solid #eee' }}>
+                                                                                                                              
+                                                                                                                                                                          <Box>
+                                                                                                                              
+                                                                                                                                                                              <Typography variant="subtitle1">{u.name || 'Unknown Name'}</Typography>
+                                                                                                                              
+                                                                                                                                                                              <Typography variant="body2" color="textSecondary">{u.email}</Typography>
+                                                                                                                              
+                                                                                                                                                                          </Box>
+                                                                                                                              
+                                                                                                                                                                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                                                                                                                              
+                                                                                                                                                                              <Select
+                                                                                                                              
+                                                                                                                                                                                  value={u.role || 'viewer'}
+                                                                                                                              
+                                                                                                                                                                                  onChange={(e) => handleUpdateRole(u._id, e.target.value)}
+                                                                                                                              
+                                                                                                                                                                                  disabled={u.email === 'a.bukhariev@krumbach.school'} // Protect Super Admin
+                                                                                                                              
+                                                                                                                                                                              >
+                                                                                                                              
+                                                                                                                                                                                  <MenuItem value="admin">Admin</MenuItem>
+                                                                                                                              
+                                                                                                                                                                                  <MenuItem value="editor">Editor</MenuItem>
+                                                                                                                              
+                                                                                                                                                                                  <MenuItem value="counter">Counter</MenuItem>
+                                                                                                                              
+                                                                                                                                                                                  <MenuItem value="viewer">Viewer</MenuItem>
+                                                                                                                              
+                                                                                                                                                                              </Select>
+                                                                                                                              
+                                                                                                                                                                          </FormControl>
+                                                                                                                              
+                                                                                                                                                                      </Box>
+                                                                                                                              
+                                                                                                                                                                  ))}
+                                                                                                                              
+                                                                                                                                                              </Box>
+                                                                                                                              
+                                                                                                                                                              <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
+                                                                                                                              
+                                                                                                                                                                  <Button onClick={() => setIsRolesModalOpen(false)}>Close</Button>
+                                                                                                                              
+                                                                                                                                                              </Box>
+                                                                                                                              
+                                                                                                                                                          </Box>
+                                                                                                                              
+                                                                                                                                                        </Modal>
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                      </>}
+                                                                                                                              
+                                                                                                                                                    </Container>        </ThemeProvider>
       );
     }
 

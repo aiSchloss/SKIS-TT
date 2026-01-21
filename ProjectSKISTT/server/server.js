@@ -38,18 +38,61 @@ if (!MONGODB_URI) {
 let db;
 const client = new MongoClient(MONGODB_URI);
 
+const SUPER_ADMIN_EMAIL = 'a.bukhariev@krumbach.school';
+
 async function connectToMongo() {
   try {
     await client.connect();
     console.log('Successfully connected to MongoDB.');
     db = client.db(); // Use the default database from the connection string
+    await initializeUsers();
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
     process.exit(1);
   }
 }
 
-connectToMongo();
+async function initializeUsers() {
+    try {
+        const usersCount = await db.collection('users').countDocuments();
+        if (usersCount === 0) {
+            console.log('Initializing users from credentials file...');
+            const credentialsFilePath = join(__dirname, 'editor-credentials.txt');
+            if (fs.existsSync(credentialsFilePath)) {
+                const credentialsData = fs.readFileSync(credentialsFilePath, 'utf8');
+                const lines = credentialsData.split('\n').filter(Boolean);
+                
+                for (const line of lines) {
+                    const [email, passwordHash] = line.split(':');
+                    if (email) {
+                        let role = 'editor';
+                        if (email === SUPER_ADMIN_EMAIL) role = 'admin';
+                        
+                        // Check if user exists (should imply 0 count, but safe to check)
+                        await db.collection('users').updateOne(
+                            { email: email },
+                            { $set: { email, role, passwordHash: passwordHash || '' } }, // passwordHash might be needed if we keep local auth logic anywhere, though we rely on Google mostly
+                            { upsert: true }
+                        );
+                    }
+                }
+                console.log('Users initialized.');
+            }
+        }
+        
+        // Ensure Super Admin always exists and has admin role
+        await db.collection('users').updateOne(
+            { email: SUPER_ADMIN_EMAIL },
+            { $set: { role: 'admin' } },
+            { upsert: true }
+        );
+        
+    } catch (err) {
+        console.error('Error initializing users:', err);
+    }
+}
+
+// connectToMongo(); // Moved inside the definition above to chain initialization
 
 // --- Email Setup (Gmail API) ---
 const EMAIL_USER = process.env.EMAIL_USER;
@@ -584,11 +627,50 @@ app.delete('/api/schedules/by-day', async (req, res) => {
   }
 });
 
+// --- User Management Endpoints ---
+
+// GET all users (only for admin UI)
+app.get('/api/users', async (req, res) => {
+    // In a real app, verify admin session here.
+    const users = await db.collection('users').find({}, { projection: { passwordHash: 0 } }).toArray(); // Exclude hash
+    res.json(users);
+});
+
+// PUT update user role
+app.put('/api/users/:id/role', async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { role } = req.body;
+        
+        // Validation
+        if (!['admin', 'editor', 'counter', 'viewer'].includes(role)) {
+            return res.status(400).json({ message: 'Invalid role' });
+        }
+
+        const userToUpdate = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+        
+        if (!userToUpdate) return res.status(404).json({ message: 'User not found' });
+        if (userToUpdate.email === SUPER_ADMIN_EMAIL && role !== 'admin') {
+             return res.status(403).json({ message: 'Cannot demote Super Admin' });
+        }
+
+        await db.collection('users').updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { role: role } }
+        );
+        res.json({ message: 'Role updated' });
+    } catch (err) {
+        console.error('Error updating role:', err);
+        res.status(500).json({ message: 'Failed to update role' });
+    }
+});
+
 // Endpoint to generate the Google Auth URL
 app.get('/api/auth/google/url', (req, res) => {
   const scopes = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/gmail.send' // Include Gmail scope we added
   ];
 
   const url = oauth2Client.generateAuthUrl({
@@ -612,22 +694,36 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const email = data.email;
 
     if (!email || !email.endsWith('@krumbach.school')) {
-      // NOTE: You might want to create a dedicated error page on your frontend
       return res.redirect('${FRONTEND_URL}?error=Invalid%20domain');
     }
 
-    const credentialsFilePath = join(__dirname, 'editor-credentials.txt');
-    const credentialsData = fs.readFileSync(credentialsFilePath, 'utf8');
-    const editors = new Map(credentialsData.split('\n').filter(Boolean).map(line => line.split(':')));
+    // DB Role Lookup
+    let user = await db.collection('users').findOne({ email: email });
+    
+    if (!user) {
+        // Auto-register as viewer
+        user = {
+            email,
+            role: 'viewer',
+            name: data.name,
+            createdAt: new Date()
+        };
+        const result = await db.collection('users').insertOne(user);
+        user._id = result.insertedId;
+    } else {
+        // Update name if changed
+        await db.collection('users').updateOne({ email: email }, { $set: { name: data.name } });
+    }
 
-    const role = editors.has(email) ? 'editor' : 'viewer';
+    // Force Super Admin role in logic just in case
+    if (email === SUPER_ADMIN_EMAIL) user.role = 'admin';
 
-    const user = { email, role, name: data.name };
-
-    // Redirect back to the frontend, passing the user object as a query parameter.
-    // In a real production app, you would use a more secure method like JWTs and cookies.
-    // The frontend URL is hardcoded here. You may need to change it depending on where you run your frontend.
-    const userParam = encodeURIComponent(JSON.stringify(user));
+    const userParam = encodeURIComponent(JSON.stringify({ 
+        email: user.email, 
+        role: user.role, 
+        name: user.name,
+        _id: user._id
+    }));
     res.redirect(`${FRONTEND_URL}?user=${userParam}`);
 
   } catch (error) {
