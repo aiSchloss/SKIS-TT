@@ -158,8 +158,19 @@
 
       const handleCopySingle = (e, event) => {
           e.stopPropagation();
-          setClipboardEvents([event]);
-          setSelectedEventIds([]); // Clear any multi-selection when single copying
+          if (selectedEventIds.length > 0) {
+              // If there is a selection, copy ALL selected events instead of just this one
+              // This makes the small icon act as "Copy Selection" if selection exists
+              const eventsToCopy = schedules.filter(evt => selectedEventIds.includes(evt._id));
+              // Ensure the clicked event is included if it wasn't selected (optional, but good UX)
+              if (!selectedEventIds.includes(event._id)) {
+                  eventsToCopy.push(event);
+              }
+              setClipboardEvents(eventsToCopy);
+          } else {
+              setClipboardEvents([event]);
+          }
+          setSelectedEventIds([]); // Clear any multi-selection
       };
 
       const handleCellClick = (e, grade, timeSlotId) => {
