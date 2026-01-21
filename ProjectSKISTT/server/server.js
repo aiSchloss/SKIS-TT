@@ -222,6 +222,33 @@ app.post('/api/send-schedule', async (req, res) => {
 
 
 
+// GET config
+app.get('/api/config', async (req, res) => {
+  const config = await db.collection('config').findOne({ id: 1 });
+  // Default config if not found
+  const defaultConfig = { 
+      id: 1, 
+      allTeachersEmail: 'teachers@krumbach.school' 
+  };
+  res.json(config || defaultConfig);
+});
+
+// PUT config
+app.put('/api/config', async (req, res) => {
+    try {
+        const { allTeachersEmail } = req.body;
+        await db.collection('config').updateOne(
+            { id: 1 },
+            { $set: { allTeachersEmail } },
+            { upsert: true }
+        );
+        res.json({ message: 'Config updated' });
+    } catch (error) {
+        console.error('Error updating config:', error);
+        res.status(500).json({ message: 'Error updating config' });
+    }
+});
+
 // GET all data (for simplicity, in a real app you'd paginate or filter)
 app.get('/api/data', async (req, res) => {
   const schedules = await db.collection('schedules').find({}).toArray();
