@@ -162,15 +162,10 @@
       };
 
       const handleCellClick = (e, grade, timeSlotId) => {
-          console.log('Cell clicked:', grade, timeSlotId, 'Clipboard length:', clipboardEvents.length);
           if (!isEditor) return;
-          
-          if (clipboardEvents.length > 0) {
-              setCellMenuAnchor(e.currentTarget);
-              setActiveCellContext({ grade, timeSlotId });
-          } else {
-              handleOpenModal(null, { grade, timeSlotId });
-          }
+          // Always open context menu
+          setCellMenuAnchor(e.currentTarget);
+          setActiveCellContext({ grade, timeSlotId });
       };
 
       const handlePasteFromMenu = () => {
@@ -2285,6 +2280,26 @@
                 </table>
               </Box>
             )}
+            {/* Cell Context Menu for Paste/Add */}
+            <Menu
+                anchorEl={cellMenuAnchor}
+                open={Boolean(cellMenuAnchor)}
+                onClose={() => setCellMenuAnchor(null)}
+            >
+                <MenuItem 
+                    onClick={handlePasteFromMenu} 
+                    disabled={clipboardEvents.length === 0}
+                >
+                    <Icon sx={{ mr: 1 }}>content_paste</Icon> Paste {clipboardEvents.length > 0 ? `${clipboardEvents.length} event(s)` : ''}
+                </MenuItem>
+                <MenuItem onClick={() => { 
+                    setCellMenuAnchor(null); 
+                    if (activeCellContext) handleOpenModal(null, activeCellContext); 
+                }}>
+                    <Icon sx={{ mr: 1 }}>add</Icon> Add New Event
+                </MenuItem>
+            </Menu>
+
             {isEditor && <>
               <Modal open={isModalOpen} onClose={handleCloseModal}>
                 <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: isMobile ? '90%' : 600, maxHeight: isMobile ? '90vh' : 'auto', overflowY: isMobile ? 'auto' : 'visible', bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
