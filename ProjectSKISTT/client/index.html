@@ -54,7 +54,9 @@
       DialogContent,
       DialogContentText,
       DialogActions,
-      Backdrop
+      Backdrop,
+      Tabs,
+      Tab
     } = MaterialUI;
 
     const theme = createTheme({
@@ -306,6 +308,7 @@
                                                       const [lessonCount, setLessonCount] = React.useState(0);
 
                                                       const [isSendMailModalOpen, setIsSendMailModalOpen] = React.useState(false);
+                                                      const [mailTab, setMailTab] = React.useState(0);
                                                       const [emailBody, setEmailBody] = React.useState('');
                                                       const [emailRecipients, setEmailRecipients] = React.useState([]);
                                                       const [selectedRecipients, setSelectedRecipients] = React.useState({});
@@ -330,14 +333,23 @@
                                                           .then(data => setEmailBody(data.text || ''))
                                                           .catch(err => console.error("Failed to fetch email text", err));
                                                         
-                                                        const allTeachersOption = { id: 'all-teachers', name: 'All Teachers', email: allTeachersEmail };
+                                                        const generalGroup = [{ id: 'all-teachers', name: 'All Teachers', email: allTeachersEmail, type: 'general' }];
                                                         
-                                                        const teachersWithEmail = teachers
+                                                        const teachersGroup = teachers
                                                             .filter(t => t.email && t.email.trim() !== '')
-                                                            .map(t => ({ ...t, id: t._id })); // Ensure 'id' matches '_id' for consistent selection
+                                                            .map(t => ({ ...t, id: t._id, type: 'teacher' }));
 
-                                                        setEmailRecipients([allTeachersOption, ...teachersWithEmail]);
+                                                        const studentsGroup = grades.map(g => ({
+                                                            id: `grade-${g}`,
+                                                            name: `Grade ${g}`,
+                                                            email: `g${g}@krumbach.school`,
+                                                            type: 'student',
+                                                            gradeNumber: g
+                                                        }));
+
+                                                        setEmailRecipients([...generalGroup, ...teachersGroup, ...studentsGroup]);
                                                         setSelectedRecipients({});
+                                                        setMailTab(0);
                                                         setIsSendMailModalOpen(true);
                                                         handleMenuClose();
                                                       };
@@ -1714,71 +1726,56 @@
                                                         const dateRangeFormatted = `(${formatDate(monday)}-${formatDate(friday)})`;
                                                         const weekNumber = getWeekNumber(currentDay);
 
-                                                        const isSendingToAll = recipients.some(r => r.id === 'all-teachers');
-
-                                                        // 1. Send General Schedule to "All Teachers" (if selected)
-                                                        if (isSendingToAll) {
-                                                          const allTeachersRecipient = recipients.find(r => r.id === 'all-teachers');
-                                                          try {
-                                                            console.log(`Processing email for: All Teachers (${allTeachersRecipient.email})`);
-                                                            const pdfDataUri = await generateWeeklyPDF(true);
-                                                            const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
-                                                            const fileName = `SKIS_Week_${weekNumber}_Schedule_${dateRangeFormatted}.pdf`;
-
-                                                            const response = await fetch(`${API_URL}/send-schedule`, {
-                                                              method: 'POST',
-                                                              headers: { 'Content-Type': 'application/json' },
-                                                              body: JSON.stringify({ emailBody, recipient: allTeachersRecipient, subject, fileName, pdfDataUri })
-                                                            });
-                                                            if (!response.ok) throw new Error((await response.json()).message || 'Failed to send email to All Teachers');
-                                                            console.log('Email sent successfully to All Teachers');
-                                                            
-                                                          } catch (err) {
-                                                            console.error(`Error sending weekly schedule to All Teachers:`, err);
-                                                            alert(`Error sending weekly schedule to All Teachers: ${err.message}`);
-                                                          }
-                                                        }
-
-                                                        // 2. Send Personal Schedules to individual teachers
-                                                        // Filter out "All Teachers" from the list to avoid duplicate processing or sending generic schedule to a person
-                                                        const personalRecipients = recipients.filter(r => r.id !== 'all-teachers');
-
-                                                        for (const recipient of personalRecipients) {
+                                                        for (const recipient of recipients) {
                                                             try {
-                                                              console.log(`Processing email for: ${recipient.name} (${recipient.email})`);
-                                                              const pdfContainer = document.getElementById('pdf-container');
-                                                              const teacher = teachers.find(t => t._id === recipient.id);
-                                                              if (!teacher) {
-                                                                  console.warn(`Teacher not found for recipient id: ${recipient.id}`);
-                                                                  continue;
-                                                              }
+                                                                console.log(`Processing email for: ${recipient.name} (${recipient.email}) [Type: ${recipient.type}]`);
+                                                                const pdfContainer = document.getElementById('pdf-container');
+                                                                let pdfDataUri = null;
+                                                                let fileName = '';
+                                                                let subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
 
-                                                              const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={() => {}} isEditor={isEditor} />;
-                                                              
-                                                              const pdfDataUri = await new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generatePDF(true, teacher.name, null, pdfContainer))));
-                                                              ReactDOM.unmountComponentAtNode(pdfContainer);
+                                                                if (recipient.type === 'general') {
+                                                                    // General Schedule
+                                                                    pdfDataUri = await generateWeeklyPDF(true);
+                                                                    fileName = `SKIS_Week_${weekNumber}_Schedule_${dateRangeFormatted}.pdf`;
+                                                                } 
+                                                                else if (recipient.type === 'teacher') {
+                                                                    // Teacher Schedule
+                                                                    const teacher = teachers.find(t => t._id === recipient.id);
+                                                                    if (!teacher) {
+                                                                        console.warn(`Teacher not found: ${recipient.id}`);
+                                                                        continue;
+                                                                    }
+                                                                    const componentToRender = <TeacherScheduleView teacher={teacher} schedules={schedules} subjects={subjects} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} grades={grades} handleOpenModal={() => {}} isEditor={isEditor} />;
+                                                                    
+                                                                    pdfDataUri = await new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generatePDF(true, teacher.name, null, pdfContainer))));
+                                                                    ReactDOM.unmountComponentAtNode(pdfContainer);
+                                                                    fileName = `SKIS_Week_${weekNumber}_${recipient.name.replace(/\s/g, '_')}_Schedule_${dateRangeFormatted}.pdf`;
+                                                                } 
+                                                                else if (recipient.type === 'student') {
+                                                                    // Student Schedule (Grade)
+                                                                    const grade = recipient.gradeNumber;
+                                                                    const componentToRender = <GradeScheduleView grade={grade} schedules={schedules} subjects={subjects} teachers={teachers} rooms={rooms} timeSlots={timeSlots} currentDay={currentDay} handleOpenModal={() => {}} isEditor={isEditor} />;
+                                                                    
+                                                                    pdfDataUri = await new Promise(res => ReactDOM.render(componentToRender, pdfContainer, () => res(generatePDF(true, null, grade, pdfContainer))));
+                                                                    ReactDOM.unmountComponentAtNode(pdfContainer);
+                                                                    fileName = `SKIS_Week_${weekNumber}_Grade_${grade}_Schedule_${dateRangeFormatted}.pdf`;
+                                                                }
 
-                                                              if (!pdfDataUri) throw new Error('PDF generation failed (data uri is empty).');
-                                                              console.log(`PDF generated for ${teacher.name}, length: ${pdfDataUri.length}`);
+                                                                if (!pdfDataUri) throw new Error('PDF generation failed.');
 
-                                                              const subject = `SKIS Week ${weekNumber} Schedule ${dateRangeFormatted}`;
-                                                              const fileName = `SKIS_Week_${weekNumber}_${recipient.name.replace(/\s/g, '_')}_Schedule_${dateRangeFormatted}.pdf`;
-
-                                                              const response = await fetch(`${API_URL}/send-schedule`, {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ emailBody, recipient, subject, fileName, pdfDataUri })
-                                                              });
-                                                              
-                                                              if (!response.ok) {
-                                                                  const errorResp = await response.json();
-                                                                  throw new Error(errorResp.message || `Server error: ${response.status}`);
-                                                              }
-                                                              console.log(`Email sent successfully to ${recipient.name}`);
+                                                                const response = await fetch(`${API_URL}/send-schedule`, {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ emailBody, recipient, subject, fileName, pdfDataUri })
+                                                                });
+                                                                
+                                                                if (!response.ok) throw new Error((await response.json()).message || 'Failed to send email');
+                                                                console.log(`Email sent to ${recipient.name}`);
 
                                                             } catch (err) {
-                                                              console.error(`Error sending schedule to ${recipient.name}:`, err);
-                                                              alert(`Error sending schedule to ${recipient.name}: ${err.message}`);
+                                                                console.error(`Error sending to ${recipient.name}:`, err);
+                                                                alert(`Error sending to ${recipient.name}: ${err.message}`);
                                                             }
                                                         }
                                                         
@@ -3094,45 +3091,83 @@
                                                                                                                 </Box>
                                                                                                               </Modal>
                                                                                                               
-                                                                                                              <Modal open={isSendMailModalOpen} onClose={handleCloseMailModal}>
-                                                                                                                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
-                                                                                                                    <Typography variant="h6" component="h2" sx={{mb: 2}}>Send Schedule via Email</Typography>
-                                                                                                                    <TextField
-                                                                                                                        label="Email Body"
-                                                                                                                        multiline
-                                                                                                                        rows={6}
-                                                                                                                        value={emailBody}
-                                                                                                                        onChange={(e) => setEmailBody(e.target.value)}
-                                                                                                                        fullWidth
-                                                                                                                        variant="outlined"
-                                                                                                                        sx={{ mb: 2 }}
-                                                                                                                    />
-                                                                                                                    <Typography variant="subtitle1" sx={{ mb: 1 }}>Recipients</Typography>
-                                                                                                                    <Box sx={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ccc', p: 1, mb: 2 }}>
-                                                                                                                        {emailRecipients.map(r => (
-                                                                                                                            <FormControlLabel
-                                                                                                                                key={r.id}
-                                                                                                                                control={
-                                                                                                                                    <Checkbox
-                                                                                                                                        checked={!!selectedRecipients[r.id]}
-                                                                                                                                        onChange={(e) => {
-                                                                                                                                            setSelectedRecipients(prev => ({ ...prev, [r.id]: e.target.checked }));
-                                                                                                                                        }}
-                                                                                                                                    />
-                                                                                                                                }
-                                                                                                                                label={r.email ? `${r.name} (${r.email})` : r.name}
-                                                                                                                            />
-                                                                                                                        ))}
-                                                                                                                    </Box>
-                                                                                                                    <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
-                                                                                                                        <Button onClick={handleCloseMailModal} sx={{mr: 1}}>Cancel</Button>
-                                                                                                                        <Button variant="contained" onClick={handleSendMail} disabled={sendingMail}>
-                                                                                                                            {sendingMail ? <CircularProgress size={24} /> : 'Send'}
-                                                                                                                        </Button>
-                                                                                                                    </Box>
-                                                                                                                </Box>
-                                                                                                                                                                                                                              </Modal>
+                                                                                                                            <Modal open={isSendMailModalOpen} onClose={handleCloseMailModal}>
+                                                                                                                              <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                                                                                                                                  <Typography variant="h6" component="h2" sx={{mb: 2}}>Send Schedule via Email</Typography>
+                                                                                                                                  
+                                                                                                                                  <TextField
+                                                                                                                                      label="Email Body"
+                                                                                                                                      multiline
+                                                                                                                                      rows={4}
+                                                                                                                                      value={emailBody}
+                                                                                                                                      onChange={(e) => setEmailBody(e.target.value)}
+                                                                                                                                      fullWidth
+                                                                                                                                      variant="outlined"
+                                                                                                                                      sx={{ mb: 2 }}
+                                                                                                                                  />
                                                                                                               
+                                                                                                                                  <Tabs value={mailTab} onChange={(e, v) => setMailTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                                                                                                                                      <Tab label="General" />
+                                                                                                                                      <Tab label="Teachers" />
+                                                                                                                                      <Tab label="Students" />
+                                                                                                                                  </Tabs>
+                                                                                                              
+                                                                                                                                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                                                                                                                                      <Button 
+                                                                                                                                          size="small" 
+                                                                                                                                          onClick={() => {
+                                                                                                                                              const allIds = emailRecipients.map(r => r.id);
+                                                                                                                                              const allSelected = allIds.every(id => selectedRecipients[id]);
+                                                                                                                                              const newSelection = {};
+                                                                                                                                              if (!allSelected) {
+                                                                                                                                                  allIds.forEach(id => newSelection[id] = true);
+                                                                                                                                              }
+                                                                                                                                              setSelectedRecipients(newSelection);
+                                                                                                                                          }}
+                                                                                                                                      >
+                                                                                                                                          {emailRecipients.every(r => selectedRecipients[r.id]) ? "Deselect All" : "Select All"}
+                                                                                                                                      </Button>
+                                                                                                                                  </Box>
+                                                                                                              
+                                                                                                                                  <Box sx={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #ccc', p: 1, mb: 2 }}>
+                                                                                                                                      {emailRecipients
+                                                                                                                                          .filter(r => {
+                                                                                                                                              if (mailTab === 0) return r.type === 'general';
+                                                                                                                                              if (mailTab === 1) return r.type === 'teacher';
+                                                                                                                                              if (mailTab === 2) return r.type === 'student';
+                                                                                                                                              return true;
+                                                                                                                                          })
+                                                                                                                                          .map(r => (
+                                                                                                                                              <FormControlLabel
+                                                                                                                                                  key={r.id}
+                                                                                                                                                  control={
+                                                                                                                                                      <Checkbox
+                                                                                                                                                          checked={!!selectedRecipients[r.id]}
+                                                                                                                                                          onChange={(e) => {
+                                                                                                                                                              setSelectedRecipients(prev => ({ ...prev, [r.id]: e.target.checked }));
+                                                                                                                                                          }}
+                                                                                                                                                      />
+                                                                                                                                                  }
+                                                                                                                                                  label={r.email ? `${r.name} (${r.email})` : r.name}
+                                                                                                                                                  sx={{ display: 'block', ml: 1 }}
+                                                                                                                                              />
+                                                                                                                                      ))}
+                                                                                                                                      {emailRecipients.filter(r => {
+                                                                                                                                              if (mailTab === 0) return r.type === 'general';
+                                                                                                                                              if (mailTab === 1) return r.type === 'teacher';
+                                                                                                                                              if (mailTab === 2) return r.type === 'student';
+                                                                                                                                              return false;
+                                                                                                                                      }).length === 0 && <Typography sx={{ p: 2, color: 'text.secondary' }}>No recipients in this category.</Typography>}
+                                                                                                                                  </Box>
+                                                                                                              
+                                                                                                                                  <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
+                                                                                                                                      <Button onClick={handleCloseMailModal} sx={{mr: 1}}>Cancel</Button>
+                                                                                                                                      <Button variant="contained" onClick={handleSendMail} disabled={sendingMail}>
+                                                                                                                                          {sendingMail ? <CircularProgress size={24} /> : 'Send'}
+                                                                                                                                      </Button>
+                                                                                                                                  </Box>
+                                                                                                                              </Box>
+                                                                                                                            </Modal>                                                                                                              
                                                                                                                             <Dialog
                                                                                                                               open={isConfirmOpen}
                                                                                                                               onClose={handleConfirmClose}
