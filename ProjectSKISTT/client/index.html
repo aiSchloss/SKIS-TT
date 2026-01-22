@@ -342,7 +342,7 @@
                                                         const studentsGroup = grades.map(g => ({
                                                             id: `grade-${g}`,
                                                             name: `Grade ${g}`,
-                                                            email: `g${g}@krumbach.school`,
+                                                            email: gradeEmails[g] || `g${g}@krumbach.school`, // Fallback just in case
                                                             type: 'student',
                                                             gradeNumber: g
                                                         }));
@@ -391,6 +391,7 @@
                                                       // Settings Modal State
                                                       const [isSettingsModalOpen, setIsSettingsModalOpen] = React.useState(false);
                                                       const [allTeachersEmail, setAllTeachersEmail] = React.useState('teachers@krumbach.school'); // Default
+                                                      const [gradeEmails, setGradeEmails] = React.useState({});
 
                                                       const handleOpenRolesModal = () => {
                                                           fetch(`${API_URL}/users`)
@@ -467,6 +468,7 @@
                                                             .then(res => res.json())
                                                             .then(cfg => {
                                                                 if (cfg.allTeachersEmail) setAllTeachersEmail(cfg.allTeachersEmail);
+                                                                if (cfg.gradeEmails) setGradeEmails(cfg.gradeEmails);
                                                             })
                                                             .catch(err => console.error("Failed to fetch config", err));
 
@@ -3315,131 +3317,203 @@
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                    <Modal open={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)}>
+                                                                                                                                                                                  <Modal open={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)}>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                      <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 400, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4 }}>
+                                                                                                                                                                                    <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 500, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4, maxHeight: '90vh', overflowY: 'auto' }}>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                          <Typography variant="h6" component="h2" sx={{mb: 2}}>System Settings</Typography>
+                                                                                                                                                                                        <Typography variant="h6" component="h2" sx={{mb: 2}}>System Settings</Typography>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                          <TextField
+                                                                                                                                                                                        
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              label="All Teachers Email Address"
+                                                                                                                                                                                        <Typography variant="subtitle1" sx={{mt: 2, mb: 1}}>General</Typography>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              value={allTeachersEmail}
+                                                                                                                                                                                        <TextField
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              onChange={(e) => setAllTeachersEmail(e.target.value)}
+                                                                                                                                                                                            label="All Teachers Email Address"
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              fullWidth
+                                                                                                                                                                                            value={allTeachersEmail}
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              variant="outlined"
+                                                                                                                                                                                            onChange={(e) => setAllTeachersEmail(e.target.value)}
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              helperText="This email will be used for the 'All Teachers' recipient option."
+                                                                                                                                                                                            fullWidth
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                          />
+                                                                                                                                                                                            variant="outlined"
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                          <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
+                                                                                                                                                                                            helperText="This email will be used for the 'All Teachers' recipient option."
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              <Button onClick={() => setIsSettingsModalOpen(false)} sx={{mr: 1}}>Cancel</Button>
+                                                                                                                                                                                        />
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              <Button 
+                                                                                                                                                                    
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                  variant="contained" 
+                                                                                                                                                                                        <Typography variant="subtitle1" sx={{mt: 3, mb: 1}}>Class Email Addresses</Typography>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                  onClick={() => {
+                                                                                                                                                                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                      fetch(`${API_URL}/config`, {
+                                                                                                                                                                                            {grades.map(g => (
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                          method: 'PUT',
+                                                                                                                                                                                                <TextField
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                          headers: { 'Content-Type': 'application/json' },
+                                                                                                                                                                                                    key={g}
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                          body: JSON.stringify({ allTeachersEmail })
+                                                                                                                                                                                                    label={`Grade ${g} Email`}
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                      })
+                                                                                                                                                                                                    value={gradeEmails[g] || ''}
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                      .then(res => {
+                                                                                                                                                                                                    onChange={(e) => setGradeEmails(prev => ({ ...prev, [g]: e.target.value }))}
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                          if(res.ok) setIsSettingsModalOpen(false);
+                                                                                                                                                                                                    fullWidth
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                          else alert('Failed to save settings');
+                                                                                                                                                                                                    size="small"
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                      });
+                                                                                                                                                                                                    variant="outlined"
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                  }}
+                                                                                                                                                                                                />
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              >
+                                                                                                                                                                                            ))}
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                                  Save
+                                                                                                                                                                                        </Box>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                              </Button>
+                                                                                                                                                                    
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                          </Box>
+                                                                                                                                                                                        <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                      </Box>
+                                                                                                                                                                                            <Button onClick={() => setIsSettingsModalOpen(false)} sx={{mr: 1}}>Cancel</Button>
                                                                                                                               
                                                                                                                                           
                                                                                                                               
-                                                                                                                                                                    </Modal>
+                                                                                                                                                                                            <Button 
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                variant="contained" 
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                onClick={() => {
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                    fetch(`${API_URL}/config`, {
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                        method: 'PUT',
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                        body: JSON.stringify({ allTeachersEmail, gradeEmails })
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                    })
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                    .then(res => {
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                        if(res.ok) setIsSettingsModalOpen(false);
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                        else alert('Failed to save settings');
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                    });
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                }}
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                            >
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                                Save
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                            </Button>
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                        </Box>
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                    </Box>
+                                                                                                                              
+                                                                                                                                          
+                                                                                                                              
+                                                                                                                                                                                  </Modal>
                                                                                                                               
                                                                                                                                           
                                                                                                                               

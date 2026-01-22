@@ -225,21 +225,33 @@ app.post('/api/send-schedule', async (req, res) => {
 // GET config
 app.get('/api/config', async (req, res) => {
   const config = await db.collection('config').findOne({ id: 1 });
-  // Default config if not found
-  const defaultConfig = { 
-      id: 1, 
-      allTeachersEmail: 'teachers@krumbach.school' 
+  
+  // Default config values
+  const defaultGradeEmails = {};
+  [7, 8, 9, 10, 11, 12].forEach(g => {
+      defaultGradeEmails[g] = `g${g}@krumbach.school`;
+  });
+
+  const responseConfig = {
+      id: 1,
+      allTeachersEmail: config?.allTeachersEmail || 'teachers@krumbach.school',
+      gradeEmails: config?.gradeEmails || defaultGradeEmails
   };
-  res.json(config || defaultConfig);
+  
+  res.json(responseConfig);
 });
 
 // PUT config
 app.put('/api/config', async (req, res) => {
     try {
-        const { allTeachersEmail } = req.body;
+        const { allTeachersEmail, gradeEmails } = req.body;
+        const updatePayload = {};
+        if (allTeachersEmail) updatePayload.allTeachersEmail = allTeachersEmail;
+        if (gradeEmails) updatePayload.gradeEmails = gradeEmails;
+
         await db.collection('config').updateOne(
             { id: 1 },
-            { $set: { allTeachersEmail } },
+            { $set: updatePayload },
             { upsert: true }
         );
         res.json({ message: 'Config updated' });
