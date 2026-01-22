@@ -372,6 +372,9 @@
                                                       // Roles Modal State
                                                       const [isRolesModalOpen, setIsRolesModalOpen] = React.useState(false);
                                                       const [usersList, setUsersList] = React.useState([]);
+                                                      const [newUserEmail, setNewUserEmail] = React.useState('');
+                                                      const [newUserName, setNewUserName] = React.useState('');
+                                                      const [newUserRole, setNewUserRole] = React.useState('viewer');
                                                       
                                                       // Settings Modal State
                                                       const [isSettingsModalOpen, setIsSettingsModalOpen] = React.useState(false);
@@ -383,6 +386,39 @@
                                                               .then(setUsersList)
                                                               .catch(err => console.error(err));
                                                           setIsRolesModalOpen(true);
+                                                      };
+
+                                                      const handleAddUser = () => {
+                                                          if (!newUserEmail) return alert('Email is required');
+                                                          fetch(`${API_URL}/users`, {
+                                                              method: 'POST',
+                                                              headers: { 'Content-Type': 'application/json' },
+                                                              body: JSON.stringify({ email: newUserEmail, name: newUserName, role: newUserRole })
+                                                          })
+                                                          .then(async res => {
+                                                              if (res.ok) {
+                                                                  const newUser = await res.json();
+                                                                  setUsersList([...usersList, newUser]);
+                                                                  setNewUserEmail('');
+                                                                  setNewUserName('');
+                                                                  setNewUserRole('viewer');
+                                                              } else {
+                                                                  const err = await res.json();
+                                                                  alert(err.message || 'Failed to add user');
+                                                              }
+                                                          });
+                                                      };
+
+                                                      const handleDeleteUser = (userId) => {
+                                                          if (!confirm('Are you sure you want to delete this user?')) return;
+                                                          fetch(`${API_URL}/users/${userId}`, { method: 'DELETE' })
+                                                          .then(res => {
+                                                              if (res.ok) {
+                                                                  setUsersList(usersList.filter(u => u._id !== userId));
+                                                              } else {
+                                                                  alert('Failed to delete user');
+                                                              }
+                                                          });
                                                       };
 
                                                       const handleUpdateRole = (userId, newRole) => {
@@ -3128,65 +3164,119 @@
                                                                                                                                               <CircularProgress color="inherit" />
                                                                                                                                             </Backdrop>
                                                                                                                               
-                                                                                                                                                        <Modal open={isRolesModalOpen} onClose={() => setIsRolesModalOpen(false)}>
+                                                                                                                                                                      <Modal open={isRolesModalOpen} onClose={() => setIsRolesModalOpen(false)}>
                                                                                                                               
-                                                                                                                                                          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4, maxHeight: '90vh', overflowY: 'auto' }}>
+                                                                                                                                                                        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4, maxHeight: '90vh', overflowY: 'auto' }}>
                                                                                                                               
-                                                                                                                                                              <Typography variant="h6" component="h2" sx={{mb: 2}}>Manage User Roles</Typography>
+                                                                                                                                                                            <Typography variant="h6" component="h2" sx={{mb: 2}}>Manage User Roles</Typography>
                                                                                                                               
-                                                                                                                                                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                                                                                                                            
                                                                                                                               
-                                                                                                                                                                  {usersList.map(u => (
+                                                                                                                                                                            <Box sx={{ mb: 3, p: 2, border: '1px dashed #1976d2', bgcolor: '#e3f2fd', borderRadius: '4px' }}>
                                                                                                                               
-                                                                                                                                                                      <Box key={u._id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, border: '1px solid #eee' }}>
+                                                                                                                                                                                <Typography variant="subtitle2" sx={{mb: 1}}>Add New User</Typography>
                                                                                                                               
-                                                                                                                                                                          <Box>
+                                                                                                                                                                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                                                                                                               
-                                                                                                                                                                              <Typography variant="subtitle1">{u.name || 'Unknown Name'}</Typography>
+                                                                                                                                                                                    <TextField size="small" label="Email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} fullWidth />
                                                                                                                               
-                                                                                                                                                                              <Typography variant="body2" color="textSecondary">{u.email}</Typography>
+                                                                                                                                                                                    <TextField size="small" label="Name (Optional)" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} fullWidth />
                                                                                                                               
-                                                                                                                                                                          </Box>
+                                                                                                                                                                                    <FormControl size="small" sx={{ minWidth: 100 }}>
                                                                                                                               
-                                                                                                                                                                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                                                                                                                                                                                        <Select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}>
                                                                                                                               
-                                                                                                                                                                              <Select
+                                                                                                                                                                                            <MenuItem value="admin">Admin</MenuItem>
                                                                                                                               
-                                                                                                                                                                                  value={u.role || 'viewer'}
+                                                                                                                                                                                            <MenuItem value="editor">Editor</MenuItem>
                                                                                                                               
-                                                                                                                                                                                  onChange={(e) => handleUpdateRole(u._id, e.target.value)}
+                                                                                                                                                                                            <MenuItem value="counter">Counter</MenuItem>
                                                                                                                               
-                                                                                                                                                                                  disabled={u.email === 'a.bukhariev@krumbach.school'} // Protect Super Admin
+                                                                                                                                                                                            <MenuItem value="viewer">Viewer</MenuItem>
                                                                                                                               
-                                                                                                                                                                              >
+                                                                                                                                                                                        </Select>
                                                                                                                               
-                                                                                                                                                                                  <MenuItem value="admin">Admin</MenuItem>
+                                                                                                                                                                                    </FormControl>
                                                                                                                               
-                                                                                                                                                                                  <MenuItem value="editor">Editor</MenuItem>
+                                                                                                                                                                                    <Button variant="contained" onClick={handleAddUser}>Add</Button>
                                                                                                                               
-                                                                                                                                                                                  <MenuItem value="counter">Counter</MenuItem>
+                                                                                                                                                                                </Box>
                                                                                                                               
-                                                                                                                                                                                  <MenuItem value="viewer">Viewer</MenuItem>
+                                                                                                                                                                            </Box>
                                                                                                                               
-                                                                                                                                                                              </Select>
+                                                                                                                                                        
                                                                                                                               
-                                                                                                                                                                          </FormControl>
+                                                                                                                                                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                                                                                                               
-                                                                                                                                                                      </Box>
+                                                                                                                                                                                {usersList.map(u => (
                                                                                                                               
-                                                                                                                                                                  ))}
+                                                                                                                                                                                    <Box key={u._id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, border: '1px solid #eee' }}>
                                                                                                                               
-                                                                                                                                                              </Box>
+                                                                                                                                                                                        <Box>
                                                                                                                               
-                                                                                                                                                              <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
+                                                                                                                                                                                            <Typography variant="subtitle1">{u.name || 'Unknown Name'}</Typography>
                                                                                                                               
-                                                                                                                                                                  <Button onClick={() => setIsRolesModalOpen(false)}>Close</Button>
+                                                                                                                                                                                            <Typography variant="body2" color="textSecondary">{u.email}</Typography>
                                                                                                                               
-                                                                                                                                                              </Box>
+                                                                                                                                                                                        </Box>
                                                                                                                               
-                                                                                                                                                          </Box>
+                                                                                                                                                                                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                                                                                                               
-                                                                                                                                                        </Modal>
+                                                                                                                                                                                            <FormControl size="small" sx={{ minWidth: 120 }}>
+                                                                                                                              
+                                                                                                                                                                                                <Select
+                                                                                                                              
+                                                                                                                                                                                                    value={u.role || 'viewer'}
+                                                                                                                              
+                                                                                                                                                                                                    onChange={(e) => handleUpdateRole(u._id, e.target.value)}
+                                                                                                                              
+                                                                                                                                                                                                    disabled={u.email === 'a.bukhariev@krumbach.school'} // Protect Super Admin
+                                                                                                                              
+                                                                                                                                                                                                >
+                                                                                                                              
+                                                                                                                                                                                                    <MenuItem value="admin">Admin</MenuItem>
+                                                                                                                              
+                                                                                                                                                                                                    <MenuItem value="editor">Editor</MenuItem>
+                                                                                                                              
+                                                                                                                                                                                                    <MenuItem value="counter">Counter</MenuItem>
+                                                                                                                              
+                                                                                                                                                                                                    <MenuItem value="viewer">Viewer</MenuItem>
+                                                                                                                              
+                                                                                                                                                                                                </Select>
+                                                                                                                              
+                                                                                                                                                                                            </FormControl>
+                                                                                                                              
+                                                                                                                                                                                            <IconButton 
+                                                                                                                              
+                                                                                                                                                                                                color="error" 
+                                                                                                                              
+                                                                                                                                                                                                onClick={() => handleDeleteUser(u._id)}
+                                                                                                                              
+                                                                                                                                                                                                disabled={u.email === 'a.bukhariev@krumbach.school'}
+                                                                                                                              
+                                                                                                                                                                                            >
+                                                                                                                              
+                                                                                                                                                                                                <Icon>delete</Icon>
+                                                                                                                              
+                                                                                                                                                                                            </IconButton>
+                                                                                                                              
+                                                                                                                                                                                        </Box>
+                                                                                                                              
+                                                                                                                                                                                    </Box>
+                                                                                                                              
+                                                                                                                                                                                ))}
+                                                                                                                              
+                                                                                                                                                                            </Box>
+                                                                                                                              
+                                                                                                                                                                            <Box sx={{mt: 3, display: 'flex', justifyContent: 'flex-end'}}>
+                                                                                                                              
+                                                                                                                                                                                <Button onClick={() => setIsRolesModalOpen(false)}>Close</Button>
+                                                                                                                              
+                                                                                                                                                                            </Box>
+                                                                                                                              
+                                                                                                                                                                        </Box>
+                                                                                                                              
+                                                                                                                                                                      </Modal>
                                                                                                                               
                                                                                                                                           
                                                                                                                               

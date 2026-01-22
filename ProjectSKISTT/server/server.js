@@ -663,6 +663,58 @@ app.get('/api/users', async (req, res) => {
     res.json(users);
 });
 
+// POST create new user (pre-register)
+app.post('/api/users', async (req, res) => {
+    try {
+        const { email, name, role } = req.body;
+        
+        if (!email || !role) {
+            return res.status(400).json({ message: 'Email and role are required' });
+        }
+        if (!['admin', 'editor', 'counter', 'viewer'].includes(role)) {
+            return res.status(400).json({ message: 'Invalid role' });
+        }
+
+        const existingUser = await db.collection('users').findOne({ email: email });
+        if (existingUser) {
+            return res.status(409).json({ message: 'User already exists' });
+        }
+
+        const newUser = {
+            email,
+            name: name || '',
+            role,
+            createdAt: new Date(),
+            preRegistered: true
+        };
+
+        const result = await db.collection('users').insertOne(newUser);
+        res.status(201).json({ ...newUser, _id: result.insertedId });
+    } catch (err) {
+        console.error('Error creating user:', err);
+        res.status(500).json({ message: 'Failed to create user' });
+    }
+});
+
+// DELETE user
+app.delete('/api/users/:id', async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const userToDelete = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+        
+        if (!userToDelete) return res.status(404).json({ message: 'User not found' });
+        if (userToDelete.email === SUPER_ADMIN_EMAIL) {
+             return res.status(403).json({ message: 'Cannot delete Super Admin' });
+        }
+
+        await db.collection('users').deleteOne({ _id: new ObjectId(userId) });
+        res.status(204).send();
+    } catch (err) {
+        console.error('Error deleting user:', err);
+        res.status(500).json({ message: 'Failed to delete user' });
+    }
+});
+
 // PUT update user role
 app.put('/api/users/:id/role', async (req, res) => {
     try {
