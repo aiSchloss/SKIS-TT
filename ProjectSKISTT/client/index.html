@@ -552,26 +552,62 @@
                                                       // HELPER FUNCTIONS
                                                       const getWeekNumber = (d) => {
                                                         const schoolYearStartDate = new Date('2025-08-25T00:00:00Z');
+                                                        // Adjust to the start of the week (Sunday) for the school start date
+                                                        const startOfSchoolYearWeek = new Date(schoolYearStartDate);
+                                                        startOfSchoolYearWeek.setUTCDate(schoolYearStartDate.getUTCDate() - schoolYearStartDate.getUTCDay()); // Sunday
+
                                                         let currentDayUTC = new Date(d.toISOString().split('T')[0] + 'T00:00:00Z');
-                                                        if (currentDayUTC < schoolYearStartDate) return 1;
+                                                        
                                                         const holidays = [
-                                                            { start: new Date('2025-10-18T00:00:00Z'), end: new Date('2025-11-02T23:59:59Z') }, { start: new Date('2025-12-20T00:00:00Z'), end: new Date('2026-01-07T23:59:59Z') },
-                                                            { start: new Date('2026-01-31T00:00:00Z'), end: new Date('2026-02-08T23:59:59Z') }, { start: new Date('2026-03-28T00:00:00Z'), end: new Date('2026-04-12T23:59:59Z') },
+                                                            { start: new Date('2025-10-18T00:00:00Z'), end: new Date('2025-11-02T23:59:59Z') }, 
+                                                            { start: new Date('2025-12-20T00:00:00Z'), end: new Date('2026-01-07T23:59:59Z') },
+                                                            { start: new Date('2026-01-31T00:00:00Z'), end: new Date('2026-02-08T23:59:59Z') }, 
+                                                            { start: new Date('2026-03-28T00:00:00Z'), end: new Date('2026-04-12T23:59:59Z') },
                                                             { start: new Date('2026-06-20T00:00:00Z'), end: new Date('2026-08-23T23:59:59Z') },
                                                         ];
-                                                        for (const period of holidays) { if (currentDayUTC >= period.start && currentDayUTC <= period.end) { return 'Holidays'; } }
-                                                        let schoolDaysCount = 0;
-                                                        let iterDate = new Date(schoolYearStartDate);
-                                                        while(iterDate <= currentDayUTC) {
-                                                            const dayOfWeek = iterDate.getUTCDay();
-                                                            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-                                                            let isHoliday = false;
-                                                            if (!isWeekend) { for (const period of holidays) { if (iterDate >= period.start && iterDate <= period.end) { isHoliday = true; break; } } }
-                                                            if (!isWeekend && !isHoliday) { schoolDaysCount++; }
-                                                            iterDate.setUTCDate(iterDate.getUTCDate() + 1);
+
+                                                        // 1. Check if the specific date is a holiday
+                                                        for (const period of holidays) { 
+                                                            if (currentDayUTC >= period.start && currentDayUTC <= period.end) { return 'Holidays'; } 
                                                         }
-                                                        if (schoolDaysCount <= 0) return 1;
-                                                        return Math.ceil(schoolDaysCount / 5);
+                                                        
+                                                        if (currentDayUTC < schoolYearStartDate) return 1; // Before school starts
+
+                                                        let weekCount = 0;
+                                                        let iterDate = new Date(startOfSchoolYearWeek);
+                                                        
+                                                        // Determine the start of the week for the target date
+                                                        const targetWeekStart = new Date(currentDayUTC);
+                                                        targetWeekStart.setUTCDate(currentDayUTC.getUTCDate() - currentDayUTC.getUTCDay());
+
+                                                        // Iterate weeks from start until we reach the target week
+                                                        while (iterDate <= targetWeekStart) {
+                                                            // Check if this week is a "school week" (not fully inside holidays)
+                                                            // We check the Monday-Friday of this week
+                                                            const weekMonday = new Date(iterDate);
+                                                            weekMonday.setUTCDate(iterDate.getUTCDate() + 1);
+                                                            const weekFriday = new Date(iterDate);
+                                                            weekFriday.setUTCDate(iterDate.getUTCDate() + 5);
+                                                            
+                                                            let isHolidayWeek = false;
+                                                            // A week is a holiday week if Monday OR Friday falls in holidays (simplification, but works for full weeks)
+                                                            // Better: check if the WHOLE work week is covered by a SINGLE holiday period
+                                                            for (const period of holidays) {
+                                                                if (weekMonday >= period.start && weekFriday <= period.end) {
+                                                                    isHolidayWeek = true;
+                                                                    break;
+                                                                }
+                                                            }
+
+                                                            if (!isHolidayWeek) {
+                                                                weekCount++;
+                                                            }
+                                                            
+                                                            // Move to next week (Sunday)
+                                                            iterDate.setUTCDate(iterDate.getUTCDate() + 7);
+                                                        }
+
+                                                        return weekCount;
                                                       };
                                                       const formatDate = (date) => {
                                                         const day = String(date.getDate()).padStart(2, '0');
