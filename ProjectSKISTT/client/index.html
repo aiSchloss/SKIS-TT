@@ -547,7 +547,7 @@
                                                         { id: 'lunch', time: '13:00 - 13:50' }, { id: 6, time: '14:00 - 14:50' }, { id: 7, time: '15:00 - 15:50' },
                                                         { id: 8, time: '16:00-16:50' }, { id: 9, time: '17:00-17:50' }, { id: 10, time: '17:50-19:00' },
                                                       ];
-                                                      const darkGrayCellStyle = { border: '2px solid #000000', padding: '8px', textAlign: 'center', verticalAlign: 'top', backgroundColor: '#e0e0e0', height: '50px' };
+                                                      const darkGrayCellStyle = { border: '2px solid #000000', padding: '8px', textAlign: 'center', verticalAlign: 'middle', backgroundColor: '#e0e0e0', height: '50px' };
                                                 
                                                       // HELPER FUNCTIONS
                                                       const getWeekNumber = (d) => {
@@ -1864,7 +1864,7 @@
                                 const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
-                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'left' }} onClick={() => handleOpenModal(event)}>
                                     <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
                                     <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
                                   </Box>
@@ -1879,7 +1879,7 @@
                           const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                           const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                           cellContent = (
-                            <Box key={event._id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                            <Box key={event._id} sx={{ backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'left' }} onClick={() => handleOpenModal(event)}>
                               <Typography variant="body1"><b>{subject ? subject.name : 'Event'}</b></Typography>
                               <Typography variant="body2">{teacher ? teacher.name : 'N/A'} / {room ? room.name : 'N/A'}</Typography>
                             </Box>
@@ -1964,7 +1964,7 @@
                                 const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
-                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'left' }} onClick={() => handleOpenModal(event)}>
                                     <Typography variant="body1"><b>{subject ? `${subject.name} (Grade ${event.grade})` : `Event (Grade ${event.grade})`}</b></Typography>
                                     <Typography variant="body2">{room ? room.name : 'N/A'}</Typography>
                                   </Box>
@@ -2058,7 +2058,7 @@
                                 const room = event.customRoom ? { name: event.customRoom } : rooms.find(r => r._id === event.roomId);
                                 const eventColor = event.color || (subject && subject.color ? subject.color : '#808080');
                                 return (
-                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word' }} onClick={() => handleOpenModal(event)}>
+                                  <Box key={event._id} sx={{ flex: 1, backgroundColor: eventColor, color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', cursor: isEditor ? 'pointer' : 'default', whiteSpace: 'normal', wordBreak: 'break-word', textAlign: 'left' }} onClick={() => handleOpenModal(event)}>
                                     <Typography variant="body1"><b>{subject ? `${subject.name} (${teacher ? teacher.name : 'N/A'})` : `Event (${teacher ? teacher.name : 'N/A'})`}</b></Typography>
                                     <Typography variant="body2">{room ? room.name : 'N/A'}</Typography>
                                   </Box>
@@ -2286,6 +2286,7 @@
                                                         cursor: isEditor ? 'pointer' : 'default', 
                                                         whiteSpace: 'normal', 
                                                         wordBreak: 'break-word', 
+                                                        textAlign: 'left',
                                                         position: 'relative', 
                                                         border: selectedEventIds.includes(event._id) ? '3px solid #1976d2' : 'none',
                                                         boxShadow: selectedEventIds.includes(event._id) ? '0 0 5px rgba(25, 118, 210, 0.8)' : 'none',
@@ -2341,6 +2342,7 @@
                                             cursor: isEditor ? 'pointer' : 'default', 
                                             whiteSpace: 'normal', 
                                             wordBreak: 'break-word', 
+                                            textAlign: 'left',
                                             position: 'relative', 
                                             border: selectedEventIds.includes(event._id) ? '3px solid #1976d2' : 'none',
                                             boxShadow: selectedEventIds.includes(event._id) ? '0 0 5px rgba(25, 118, 210, 0.8)' : 'none',
